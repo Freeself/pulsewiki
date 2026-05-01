@@ -95,7 +95,7 @@ db.close();
 npm run dev
 ```
 
-打开 http://localhost:5173
+打开 http://localhost:3000
 
 ## NPM 命令
 

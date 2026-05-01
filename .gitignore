@@ -39,4 +39,5 @@ build/
 # Test coverage
 coverage/
 .nyc_output/
-data.db
+data.db.backend-features.json
+info.md
