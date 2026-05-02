@@ -163,6 +163,7 @@ export default function WikiDetail() {
   }
 
   const handleDelete = async () => {
+    if (!confirm('确定要删除这个 Wiki 吗？此操作不可撤销。')) return
     await deleteMut.mutate(wikiId)
     navigate('/wiki')
   }

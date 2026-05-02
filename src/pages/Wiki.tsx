@@ -50,6 +50,7 @@ export default function Wiki() {
   }
 
   const handleDelete = async (id: number) => {
+    if (!confirm('确定要删除这个 Wiki 吗？此操作不可撤销。')) return
     await deleteMut.mutate(id)
     refresh()
   }
