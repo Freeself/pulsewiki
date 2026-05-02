@@ -100,10 +100,11 @@ export function useWikiTags() {
 export function useWiki(id: number) {
   const backendOk = useBackendAvailable()
   const trpcQuery = trpc.knowledge.getWiki.useQuery({ id }, { enabled: backendOk && !!id, retry: false })
+  const { version } = useLocalDataRefresh()
 
   const localData = useMemo(() => {
     return getLocalWikis().find(w => w.id === id) ?? null
-  }, [id, backendOk])
+  }, [id, backendOk, version])
 
   if (backendOk && trpcQuery.data) return { data: trpcQuery.data as unknown as LocalWiki, isLoading: trpcQuery.isLoading }
   return { data: localData, isLoading: false }
@@ -141,14 +142,19 @@ export function useUpdateWiki() {
   const backendOk = useBackendAvailable()
   const trpcMut = trpc.knowledge.updateWiki.useMutation()
   const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+  const utils = trpc.useUtils()
 
   const mutate = async (input: { id: number; title?: string; content?: string; summary?: string; category?: string }) => {
     setPending(true)
     try {
       if (backendOk) {
         await trpcMut.mutateAsync(input)
+        await utils.knowledge.getWiki.invalidate({ id: input.id })
+        await utils.knowledge.listWikis.invalidate()
       } else {
         updateLocalWiki(input.id, input)
+        refresh()
       }
     } finally {
       setPending(false)
@@ -250,12 +256,16 @@ export function useUpdateWikiTags() {
   const backendOk = useBackendAvailable()
   const trpcMut = trpc.knowledge.updateWikiTags.useMutation()
   const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+  const utils = trpc.useUtils()
 
   const mutate = async (id: number, tags: string[]) => {
     setPending(true)
     try {
       if (backendOk) {
         await trpcMut.mutateAsync({ id, tags })
+        await utils.knowledge.getWiki.invalidate({ id })
+        await utils.knowledge.listWikis.invalidate()
       } else {
         const wikis = getLocalWikis()
         const idx = wikis.findIndex(w => w.id === id)
@@ -263,6 +273,7 @@ export function useUpdateWikiTags() {
           wikis[idx] = { ...wikis[idx], tags: JSON.stringify(tags), updatedAt: new Date() }
           localStorage.setItem('pw_wikis', JSON.stringify(wikis))
         }
+        refresh()
       }
     } finally {
       setPending(false)

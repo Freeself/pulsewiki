@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
 import ReactMarkdown from 'react-markdown'
@@ -25,8 +25,6 @@ export default function WikiDetail() {
   const navigate = useNavigate()
   const wikiId = Number(id)
 
-  const [refreshKey, setRefreshKey] = useState(0)
-  const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
 
   const { data: wiki, isLoading } = useWiki(wikiId)
   const updateMut = useUpdateWiki()
@@ -96,14 +94,12 @@ export default function WikiDetail() {
   const saveTags = async () => {
     await updateTagsMut.mutate(wikiId, editingTags)
     setIsEditingTags(false)
-    refresh()
   }
 
   const handleRegenerateTags = async () => {
     const tags = await regenerateTagsMut.mutate(wikiId)
     if (tags.length > 0) {
       await updateTagsMut.mutate(wikiId, tags)
-      refresh()
     }
   }
 
@@ -159,7 +155,6 @@ export default function WikiDetail() {
       category: editCategory.trim() || undefined,
     })
     setIsEditing(false)
-    refresh()
   }
 
   const handleDelete = async () => {
@@ -274,7 +269,7 @@ export default function WikiDetail() {
             </div>
           </div>
         ) : (
-          <div key={refreshKey} className="glass-panel rounded-2xl p-6 sm:p-8">
+          <div className="glass-panel rounded-2xl p-6 sm:p-8">
             {wiki.category && (
               <span className="text-xs px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 flex items-center gap-1 inline-flex mb-4">
                 <Tag className="w-3 h-3" />
