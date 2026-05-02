@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { questions, wikis } from "@db/schema";
+import { questions, wikis, wikiEdges } from "@db/schema";
 import { eq, and, desc, like, or } from "drizzle-orm";
 import { generateEmbedding, findSimilarWikis } from "./lib/embedding";
 import { generateTags } from "./lib/tagging";
@@ -226,6 +226,18 @@ export const knowledgeRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
+      // Delete associated edges first
+      await db
+        .delete(wikiEdges)
+        .where(
+          and(
+            eq(wikiEdges.userId, ctx.user.id),
+            or(
+              eq(wikiEdges.sourceWikiId, input.id),
+              eq(wikiEdges.targetWikiId, input.id)
+            )
+          )
+        );
       await db
         .delete(wikis)
         .where(and(eq(wikis.id, input.id), eq(wikis.userId, ctx.user.id)));

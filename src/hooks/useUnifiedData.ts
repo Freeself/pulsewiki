@@ -17,6 +17,7 @@ import {
   addLocalEdge,
   updateLocalEdge,
   deleteLocalEdge,
+  deleteLocalEdgesForWiki,
   type LocalWiki,
   type LocalWikiEdge,
   type LocalQuestion,
@@ -167,6 +168,7 @@ export function useDeleteWiki() {
         await trpcMut.mutateAsync({ id })
       } else {
         deleteLocalWiki(id)
+        deleteLocalEdgesForWiki(id)
       }
     } finally {
       setPending(false)
