@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
-import { useWikiList, useCreateWiki, useDeleteWiki } from '@/hooks/useUnifiedData'
+import { useWikiList, useCreateWiki, useDeleteWiki, useBackfillEmbeddings } from '@/hooks/useUnifiedData'
 import {
   BookOpen,
   Search,
@@ -11,6 +11,8 @@ import {
   Clock,
   Tag,
   FileText,
+  Zap,
+  Sparkles,
 } from 'lucide-react'
 
 export default function Wiki() {
@@ -25,6 +27,8 @@ export default function Wiki() {
   const { data: wikis, isLoading } = useWikiList(search || undefined)
   const createMut = useCreateWiki()
   const deleteMut = useDeleteWiki()
+  const backfillMut = useBackfillEmbeddings()
+  const [backfillResult, setBackfillResult] = useState<{ updated: number; total: number } | null>(null)
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
 
@@ -62,14 +66,40 @@ export default function Wiki() {
               <p className="text-xs text-neutral-500">管理你的知识条目</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 text-sm hover:bg-purple-500/30 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            新建
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                setBackfillResult(null)
+                const result = await backfillMut.mutate()
+                setBackfillResult(result as { updated: number; total: number })
+              }}
+              disabled={backfillMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/15 text-amber-300 text-xs hover:bg-amber-500/25 transition-all disabled:opacity-40"
+            >
+              {backfillMut.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Zap className="w-3.5 h-3.5" />
+              )}
+              向量化
+            </button>
+            <button
+              onClick={() => setShowCreate(!showCreate)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 text-sm hover:bg-purple-500/30 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              新建
+            </button>
+          </div>
         </div>
+
+        {/* Backfill Result */}
+        {backfillResult && (
+          <div className="mb-4 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20 text-xs text-green-400 flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5" />
+            向量化完成：已更新 {backfillResult.updated} / {backfillResult.total} 个条目
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative mb-6">
@@ -149,6 +179,15 @@ export default function Wiki() {
                         <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 flex items-center gap-1">
                           <Tag className="w-2.5 h-2.5" />
                           {wiki.category}
+                        </span>
+                      )}
+                      {wiki.embedding ? (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 flex items-center gap-0.5" title="已向量化">
+                          <Sparkles className="w-2.5 h-2.5" />
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-neutral-800 text-neutral-600 flex items-center gap-0.5" title="未向量化">
+                          <Sparkles className="w-2.5 h-2.5" />
                         </span>
                       )}
                     </div>

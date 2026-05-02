@@ -15,4 +15,8 @@ export const env = {
   aiBaseUrl: required("AI_BASE_URL"),
   aiApiKey: required("AI_API_KEY"),
   aiModel: process.env.AI_MODEL || "gpt-4o",
+  aiEmbeddingBaseUrl: process.env.AI_EMBEDDING_BASE_URL || process.env.AI_BASE_URL || "",
+  aiEmbeddingApiKey: process.env.AI_EMBEDDING_API_KEY || process.env.AI_API_KEY || "",
+  aiEmbeddingModel: process.env.AI_EMBEDDING_MODEL || "text-embedding-3-small",
+  embeddingThreshold: parseFloat(process.env.EMBEDDING_THRESHOLD || "0.5"),
 };

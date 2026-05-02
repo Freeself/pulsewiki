@@ -4,12 +4,22 @@ import { getDb } from "./queries/connection";
 import { questions, wikis } from "@db/schema";
 import { eq, and, like, or, desc } from "drizzle-orm";
 import { env } from "./lib/env";
+import { generateEmbedding, findSimilarWikis } from "./lib/embedding";
 
-// Search local knowledge (wikis) for relevant content
+// Search local knowledge (wikis) for relevant content using vector search
 async function searchLocalKnowledge(userId: number, query: string) {
   const db = getDb();
 
-  // Search wikis
+  // Try vector search first
+  const queryEmb = await generateEmbedding(query);
+  if (queryEmb) {
+    const similar = await findSimilarWikis(userId, queryEmb, undefined, 3);
+    if (similar.length > 0) {
+      return { wikis: similar.map((r) => r.wiki) };
+    }
+  }
+
+  // Fallback to LIKE search
   const wikiResults = await db
     .select()
     .from(wikis)
@@ -173,6 +183,10 @@ ${context ? "\nThe following is the user's existing knowledge base that may be r
 
       const summary = await callAI(summaryMessages) || question.answer.slice(0, 200);
 
+      // Generate embedding
+      const embText = `${title}\n${summary}\n${question.answer.slice(0, 2000)}`;
+      const embedding = await generateEmbedding(embText);
+
       // Create wiki entry
       const [newWiki] = await db.insert(wikis).values({
         userId: ctx.user.id,
@@ -181,6 +195,7 @@ ${context ? "\nThe following is the user's existing knowledge base that may be r
         summary,
         category: "AI Generated",
         relatedQuestionId: question.id,
+        embedding: embedding ? JSON.stringify(embedding) : null,
       }).returning();
 
       // Mark question as converted
@@ -225,6 +240,10 @@ ${context ? "\nThe following is the user's existing knowledge base that may be r
       ];
       const summary = await callAI(summaryMessages) || q.answer.slice(0, 200);
 
+      // Generate embedding
+      const embText = `${title}\n${summary}\n${q.answer.slice(0, 2000)}`;
+      const embedding = await generateEmbedding(embText);
+
       const [wiki] = await db.insert(wikis).values({
         userId: ctx.user.id,
         title,
@@ -232,6 +251,7 @@ ${context ? "\nThe following is the user's existing knowledge base that may be r
         summary,
         category: "AI Generated",
         relatedQuestionId: q.id,
+        embedding: embedding ? JSON.stringify(embedding) : null,
       }).returning();
 
       await db

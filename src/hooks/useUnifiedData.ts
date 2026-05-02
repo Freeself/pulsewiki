@@ -197,6 +197,12 @@ export function useStats() {
   return getLocalStats()
 }
 
+// ===== Backfill Embeddings =====
+export function useBackfillEmbeddings() {
+  const trpcMut = trpc.knowledge.backfillEmbeddings.useMutation()
+  return { mutate: trpcMut.mutateAsync, isPending: trpcMut.isPending, data: trpcMut.data }
+}
+
 // ===== Knowledge Network =====
 export function useNetwork() {
   const backendOk = useBackendAvailable()

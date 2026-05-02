@@ -3,6 +3,7 @@ import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { questions, wikis } from "@db/schema";
 import { eq, and, desc, like, or } from "drizzle-orm";
+import { generateEmbedding, findSimilarWikis } from "./lib/embedding";
 
 export const knowledgeRouter = createRouter({
   // ===== Questions =====
@@ -11,7 +12,7 @@ export const knowledgeRouter = createRouter({
     .query(async ({ ctx, input }) => {
       const db = getDb();
       const conditions = [eq(questions.userId, ctx.user.id)];
-      
+
       if (input?.search) {
         conditions.push(
           or(
@@ -62,9 +63,29 @@ export const knowledgeRouter = createRouter({
 
   // ===== Wikis =====
   listWikis: publicQuery
-    .input(z.object({ search: z.string().optional(), category: z.string().optional() }).optional())
+    .input(
+      z
+        .object({ search: z.string().optional(), category: z.string().optional() })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       const db = getDb();
+
+      // Vector search when search term is provided
+      if (input?.search) {
+        const queryEmb = await generateEmbedding(input.search);
+        if (queryEmb) {
+          const similar = await findSimilarWikis(ctx.user.id, queryEmb, undefined, 20);
+          let results = similar.map((r) => r.wiki);
+          if (input.category) {
+            results = results.filter((w) => w.category === input.category);
+          }
+          return results;
+        }
+        // Fallback to LIKE search
+      }
+
+      // Default: no search or LIKE fallback
       const conditions = [eq(wikis.userId, ctx.user.id)];
 
       if (input?.search) {
@@ -95,12 +116,7 @@ export const knowledgeRouter = createRouter({
       const result = await db
         .select()
         .from(wikis)
-        .where(
-          and(
-            eq(wikis.id, input.id),
-            eq(wikis.userId, ctx.user.id)
-          )
-        )
+        .where(and(eq(wikis.id, input.id), eq(wikis.userId, ctx.user.id)))
         .limit(1);
       return result[0] ?? null;
     }),
@@ -116,13 +132,22 @@ export const knowledgeRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const [result] = await db.insert(wikis).values({
-        userId: ctx.user.id,
-        title: input.title,
-        content: input.content,
-        summary: input.summary,
-        category: input.category,
-      }).returning();
+
+      // Generate embedding from title + summary + content excerpt
+      const embText = `${input.title}\n${input.summary || ""}\n${input.content.slice(0, 2000)}`;
+      const embedding = await generateEmbedding(embText);
+
+      const [result] = await db
+        .insert(wikis)
+        .values({
+          userId: ctx.user.id,
+          title: input.title,
+          content: input.content,
+          summary: input.summary,
+          category: input.category,
+          embedding: embedding ? JSON.stringify(embedding) : null,
+        })
+        .returning();
       return { id: result.id };
     }),
 
@@ -139,15 +164,30 @@ export const knowledgeRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const { id, ...updates } = input;
+
+      // Regenerate embedding if title or content changed
+      if (updates.title || updates.content) {
+        const wiki = await db
+          .select()
+          .from(wikis)
+          .where(and(eq(wikis.id, id), eq(wikis.userId, ctx.user.id)))
+          .limit(1);
+        if (wiki[0]) {
+          const title = updates.title ?? wiki[0].title;
+          const content = updates.content ?? wiki[0].content;
+          const summary = updates.summary ?? wiki[0].summary ?? "";
+          const embText = `${title}\n${summary}\n${content.slice(0, 2000)}`;
+          const embedding = await generateEmbedding(embText);
+          if (embedding) {
+            (updates as any).embedding = JSON.stringify(embedding);
+          }
+        }
+      }
+
       await db
         .update(wikis)
         .set(updates)
-        .where(
-          and(
-            eq(wikis.id, id),
-            eq(wikis.userId, ctx.user.id)
-          )
-        );
+        .where(and(eq(wikis.id, id), eq(wikis.userId, ctx.user.id)));
       return { success: true };
     }),
 
@@ -157,14 +197,35 @@ export const knowledgeRouter = createRouter({
       const db = getDb();
       await db
         .delete(wikis)
-        .where(
-          and(
-            eq(wikis.id, input.id),
-            eq(wikis.userId, ctx.user.id)
-          )
-        );
+        .where(and(eq(wikis.id, input.id), eq(wikis.userId, ctx.user.id)));
       return { success: true };
     }),
+
+  backfillEmbeddings: publicQuery.mutation(async ({ ctx }) => {
+    const db = getDb();
+    const allWikis = await db
+      .select()
+      .from(wikis)
+      .where(eq(wikis.userId, ctx.user.id));
+
+    const missing = allWikis.filter((w) => !w.embedding);
+    if (missing.length === 0) return { updated: 0, total: allWikis.length };
+
+    let updated = 0;
+    for (const wiki of missing) {
+      const embText = `${wiki.title}\n${wiki.summary || ""}\n${wiki.content.slice(0, 2000)}`;
+      const embedding = await generateEmbedding(embText);
+      if (embedding) {
+        await db
+          .update(wikis)
+          .set({ embedding: JSON.stringify(embedding) })
+          .where(eq(wikis.id, wiki.id));
+        updated++;
+      }
+    }
+
+    return { updated, total: allWikis.length };
+  }),
 
   getWikiCategories: publicQuery.query(async ({ ctx }) => {
     const db = getDb();
@@ -179,17 +240,17 @@ export const knowledgeRouter = createRouter({
   // ===== Stats =====
   getStats: publicQuery.query(async ({ ctx }) => {
     const db = getDb();
-    
+
     const qCount = await db
       .select()
       .from(questions)
       .where(eq(questions.userId, ctx.user.id));
-    
+
     const wCount = await db
       .select()
       .from(wikis)
       .where(eq(wikis.userId, ctx.user.id));
-    
+
     return {
       questions: qCount.length,
       wikis: wCount.length,
@@ -201,22 +262,34 @@ export const knowledgeRouter = createRouter({
     .input(z.object({ query: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const db = getDb();
-      const searchTerm = `%${input.query}%`;
 
-      const wikiResults = await db
-        .select()
-        .from(wikis)
-        .where(
-          and(
-            eq(wikis.userId, ctx.user.id),
-            or(
-              like(wikis.title, searchTerm),
-              like(wikis.content, searchTerm)
+      // Try vector search for wikis
+      const queryEmb = await generateEmbedding(input.query);
+      let wikiResults: any[] = [];
+
+      if (queryEmb) {
+        const similar = await findSimilarWikis(ctx.user.id, queryEmb, undefined, 5);
+        wikiResults = similar.map((r) => r.wiki);
+      } else {
+        // Fallback to LIKE
+        const searchTerm = `%${input.query}%`;
+        wikiResults = await db
+          .select()
+          .from(wikis)
+          .where(
+            and(
+              eq(wikis.userId, ctx.user.id),
+              or(
+                like(wikis.title, searchTerm),
+                like(wikis.content, searchTerm)
+              )
             )
           )
-        )
-        .limit(5);
+          .limit(5);
+      }
 
+      // Questions still use LIKE
+      const searchTerm = `%${input.query}%`;
       const questionResults = await db
         .select()
         .from(questions)

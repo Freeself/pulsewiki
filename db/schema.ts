@@ -42,6 +42,7 @@ export const wikis = sqliteTable("wikis", {
   summary: text("summary"),
   category: text("category"),
   relatedQuestionId: integer("relatedQuestionId"),
+  embedding: text("embedding"), // JSON string of float[] for vector search
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()).$onUpdate(() => new Date()),
 });
