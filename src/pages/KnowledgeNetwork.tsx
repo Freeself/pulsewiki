@@ -173,8 +173,10 @@ export default function KnowledgeNetwork() {
       }
     })
 
-    // Build wiki-wiki relation edges
-    const graphEdges: any[] = edges.map((e) => ({
+    // Build wiki-wiki relation edges (filter out edges referencing missing wikis)
+    const wikiIdSet = new Set(wikis.map(w => w.id))
+    const validEdges = edges.filter(e => wikiIdSet.has(e.sourceWikiId) && wikiIdSet.has(e.targetWikiId))
+    const graphEdges: any[] = validEdges.map((e) => ({
       id: `rel-${e.id}`,
       source: `wiki-${e.sourceWikiId}`,
       target: `wiki-${e.targetWikiId}`,
@@ -202,7 +204,7 @@ export default function KnowledgeNetwork() {
 
       // Auto-infer relations from shared tags (2+ shared tags = related)
       const wikiIds = wikis.map(w => w.id)
-      const existingRelSet = new Set(edges.map(e => `${e.sourceWikiId}-${e.targetWikiId}`))
+      const existingRelSet = new Set(validEdges.map(e => `${e.sourceWikiId}-${e.targetWikiId}`))
       for (let i = 0; i < wikiIds.length; i++) {
         for (let j = i + 1; j < wikiIds.length; j++) {
           const a = wikiIds[i], b = wikiIds[j]
