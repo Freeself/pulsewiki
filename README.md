@@ -1,12 +1,15 @@
 # PulseWiki
 
-AI-powered personal knowledge base. Ask questions, get answers from your existing wikis and notes, or let AI generate new ones. One click to organize Q&As into knowledge entries.
+AI-powered personal knowledge base. Ask questions and the system first searches your Wikis for answers, then falls back to an LLM for generated responses. One click to organize Q&As into knowledge entries.
 
 ## Features
 
-- **AI Q&A** — Ask anything. Searches your wikis and notes first, then falls back to LLM for answers
-- **Wiki Knowledge Base** — Create, edit, and search wiki entries with categories
-- **Notes** — Quick notes with Markdown support
+- **AI Q&A** — Ask anything. Searches your local Wikis first, then falls back to LLM for answers
+- **Wiki Knowledge Base** — Create, edit, and search wiki entries with categories and tags
+- **Vector Semantic Search** — Embedding-based semantic search that understands "frontend framework" and "React" are related
+- **Tag System** — AI auto-generates tags, supports tag filtering and clustering
+- **Knowledge Network** — Force-directed graph visualization of wiki relationships, with tag node clustering
+- **Wiki Relations** — Manually create, edit, and delete relationships between Wikis
 - **Auto-organize** — Batch convert Q&A records into wiki entries with one click
 - **Static mode** — Works without a backend, using localStorage for demo/offline use
 
@@ -14,10 +17,11 @@ AI-powered personal knowledge base. Ask questions, get answers from your existin
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19, TypeScript, Vite, TailwindCSS, Radix UI |
+| Frontend | React 19, TypeScript, Vite, TailwindCSS, Radix UI, AntV G6 |
 | API | Hono, tRPC (end-to-end type safety) |
 | Database | SQLite (better-sqlite3), Drizzle ORM |
 | AI | OpenAI-compatible API (OpenAI, Qwen, DeepSeek, etc.) |
+| Embedding | OpenAI-compatible `/embeddings` API |
 | Runtime | Node.js 20+ |
 
 ## Quick Start
@@ -46,13 +50,21 @@ Edit `.env`:
 # Database
 DATABASE_PATH=./data.db
 
-# AI — any OpenAI-compatible API
+# AI chat config — any OpenAI-compatible API
 AI_BASE_URL=https://api.openai.com/v1
 AI_API_KEY=sk-your-api-key
 AI_MODEL=gpt-4o
 
+# Embedding config (for vector search, can be separate)
+AI_EMBEDDING_BASE_URL=https://api.openai.com/v1
+AI_EMBEDDING_API_KEY=sk-your-api-key
+AI_EMBEDDING_MODEL=text-embedding-3-small
+
 # Default user ID (single-user mode, no auth required)
 DEFAULT_USER_ID=1
+
+# Semantic search threshold (0~1, default 0.5)
+EMBEDDING_THRESHOLD=0.5
 ```
 
 **Supported AI providers:**
@@ -81,8 +93,8 @@ db.exec(\`
   CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, unionId TEXT NOT NULL UNIQUE, name TEXT, email TEXT, avatar TEXT, role TEXT NOT NULL DEFAULT 'user', createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()), lastSignInAt INTEGER NOT NULL DEFAULT (unixepoch()));
   INSERT OR IGNORE INTO users (id, unionId, name, role) VALUES (1, 'default', 'Admin', 'admin');
   CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'ai', sourceIds TEXT, isConvertedToWiki TEXT NOT NULL DEFAULT 'no', createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
-  CREATE TABLE IF NOT EXISTS wikis (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, summary TEXT, category TEXT, relatedQuestionId INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
-  CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+  CREATE TABLE IF NOT EXISTS wikis (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, summary TEXT, category TEXT, relatedQuestionId INTEGER, embedding TEXT, tags TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+  CREATE TABLE IF NOT EXISTS wiki_edges (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, sourceWikiId INTEGER NOT NULL, targetWikiId INTEGER NOT NULL, label TEXT NOT NULL, strength TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
 \`);
 console.log('Done');
 db.close();
@@ -122,6 +134,7 @@ docker run -d \
   -e AI_BASE_URL=https://api.openai.com/v1 \
   -e AI_API_KEY=sk-your-key \
   -e AI_MODEL=gpt-4o \
+  -e AI_EMBEDDING_API_KEY=sk-your-key \
   pulsewiki
 ```
 
@@ -134,16 +147,20 @@ app/
 │   ├── context.ts        # tRPC context (default user)
 │   ├── middleware.ts     # tRPC middleware
 │   ├── router.ts         # Root router
-│   ├── knowledge-router.ts  # Wiki/Note/Question CRUD
+│   ├── knowledge-router.ts  # Wiki/Q&A CRUD, vector search
+│   ├── network-router.ts    # Wiki relationship network CRUD
 │   ├── ai-router.ts      # AI Q&A endpoints
-│   └── queries/          # Database queries
+│   └── lib/              # Utilities
+│       ├── embedding.ts  # Embedding generation & vector search
+│       ├── tagging.ts    # AI tag generation
+│       └── env.ts        # Environment config
 ├── db/
 │   ├── schema.ts         # Drizzle ORM schema
 │   └── relations.ts      # Table relations
 ├── src/                  # Frontend (React)
 │   ├── pages/            # Page components
 │   ├── components/       # UI components
-│   ├── hooks/            # Data hooks (dual-mode)
+│   ├── hooks/            # Data hooks (dual-mode: backend/localStorage)
 │   └── providers/        # tRPC provider
 ├── .env.example          # Environment template
 ├── Dockerfile            # Docker build
@@ -153,10 +170,28 @@ app/
 ## How AI Q&A Works
 
 1. User submits a question
-2. System searches local wikis and notes for matches
-3. If matches found, they're included as context in the AI prompt
-4. AI generates an answer using both local knowledge and its own knowledge
-5. Q&A is saved and can be converted to a wiki entry or note with one click
+2. The query text is converted to an embedding vector
+3. Cosine similarity search is performed against all Wiki embeddings
+4. If matches found, they're included as context in the AI prompt
+5. AI generates an answer using both local knowledge and its own knowledge
+6. Q&A is saved and can be converted to a wiki entry with one click
+
+## How Vector Semantic Search Works
+
+1. When creating/updating a Wiki, the Embedding API converts title+summary+content to a vector
+2. The vector is stored as a JSON string in `wikis.embedding`
+3. When searching, the query text is also converted to a vector
+4. Cosine similarity is computed against all Wiki embeddings
+5. Results are sorted by similarity score (default threshold 0.5)
+6. Falls back to SQL LIKE search if the Embedding API is unavailable
+
+## How Knowledge Network Works
+
+1. Users manually create relationships between Wikis (related, depends, references, contrasts, contains)
+2. The system can also auto-infer: Wikis sharing 2+ tags get an automatic "related" edge
+3. All Wiki nodes and relationship edges are visualized with AntV G6 force-directed graph
+4. Tags are also displayed as nodes for tag clustering
+5. Supports node search, hover highlighting, and side detail panel
 
 ## License
 

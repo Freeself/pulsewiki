@@ -1,12 +1,15 @@
 # PulseWiki
 
-AI 驱动的个人知识库。提问任何问题，系统会先在你的 Wiki 和笔记中搜索答案，找不到则调用大模型生成回答，并支持一键整理到知识库。
+AI 驱动的个人知识库。提问任何问题，系统先在你的 Wiki 中搜索答案，找不到则调用大模型生成回答，并支持一键整理到知识库。
 
 ## 功能特性
 
-- **AI 问答** — 提问后先搜索本地 Wiki 和笔记，再由大模型补充回答
-- **Wiki 知识库** — 创建、编辑、搜索知识条目，支持分类
-- **笔记** — 快速记录想法，支持 Markdown
+- **AI 问答** — 提问后先搜索本地 Wiki，再由大模型补充回答
+- **Wiki 知识库** — 创建、编辑、搜索知识条目，支持分类和标签
+- **向量语义搜索** — 基于 embedding 的语义搜索，理解"前端框架"和"React"的关联
+- **标签系统** — AI 自动生成标签，支持标签筛选和聚类
+- **知识网络** — 力导向图可视化 Wiki 之间的关联关系，支持标签节点聚类
+- **Wiki 关联** — 手动创建、编辑、删除 Wiki 之间的关系
 - **自动整理** — 一键批量将问答记录转化为 Wiki 条目
 - **离线模式** — 无后端时使用 localStorage，支持演示和离线使用
 
@@ -14,10 +17,11 @@ AI 驱动的个人知识库。提问任何问题，系统会先在你的 Wiki �
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | React 19, TypeScript, Vite, TailwindCSS, Radix UI |
+| 前端 | React 19, TypeScript, Vite, TailwindCSS, Radix UI, AntV G6 |
 | 接口 | Hono, tRPC（端到端类型安全） |
 | 数据库 | SQLite (better-sqlite3), Drizzle ORM |
 | AI | OpenAI 兼容接口（支持 OpenAI、通义千问、DeepSeek 等） |
+| Embedding | OpenAI 兼容 `/embeddings` 接口 |
 | 运行时 | Node.js 20+ |
 
 ## 快速开始
@@ -46,13 +50,21 @@ cp .env.example .env
 # 数据库
 DATABASE_PATH=./data.db
 
-# AI 配置 — 支持 any OpenAI 兼容接口
+# AI 对话配置 — 支持任意 OpenAI 兼容接口
 AI_BASE_URL=https://api.openai.com/v1
 AI_API_KEY=sk-your-api-key
 AI_MODEL=gpt-4o
 
+# Embedding 配置（向量搜索用，可独立配置）
+AI_EMBEDDING_BASE_URL=https://api.openai.com/v1
+AI_EMBEDDING_API_KEY=sk-your-api-key
+AI_EMBEDDING_MODEL=text-embedding-3-small
+
 # 默认用户 ID（单用户模式，无需登录）
 DEFAULT_USER_ID=1
+
+# 语义搜索阈值（0~1，默认 0.5）
+EMBEDDING_THRESHOLD=0.5
 ```
 
 **支持的 AI 服务商：**
@@ -81,8 +93,8 @@ db.exec(\`
   CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, unionId TEXT NOT NULL UNIQUE, name TEXT, email TEXT, avatar TEXT, role TEXT NOT NULL DEFAULT 'user', createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()), lastSignInAt INTEGER NOT NULL DEFAULT (unixepoch()));
   INSERT OR IGNORE INTO users (id, unionId, name, role) VALUES (1, 'default', 'Admin', 'admin');
   CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'ai', sourceIds TEXT, isConvertedToWiki TEXT NOT NULL DEFAULT 'no', createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
-  CREATE TABLE IF NOT EXISTS wikis (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, summary TEXT, category TEXT, relatedQuestionId INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
-  CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+  CREATE TABLE IF NOT EXISTS wikis (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, summary TEXT, category TEXT, relatedQuestionId INTEGER, embedding TEXT, tags TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+  CREATE TABLE IF NOT EXISTS wiki_edges (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, sourceWikiId INTEGER NOT NULL, targetWikiId INTEGER NOT NULL, label TEXT NOT NULL, strength TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
 \`);
 console.log('Done');
 db.close();
@@ -122,6 +134,7 @@ docker run -d \
   -e AI_BASE_URL=https://api.openai.com/v1 \
   -e AI_API_KEY=sk-your-key \
   -e AI_MODEL=gpt-4o \
+  -e AI_EMBEDDING_API_KEY=sk-your-key \
   pulsewiki
 ```
 
@@ -134,16 +147,20 @@ app/
 │   ├── context.ts        # tRPC 上下文（默认用户）
 │   ├── middleware.ts     # tRPC 中间件
 │   ├── router.ts         # 根路由
-│   ├── knowledge-router.ts  # Wiki/笔记/问答 CRUD
+│   ├── knowledge-router.ts  # Wiki/问答 CRUD、向量搜索
+│   ├── network-router.ts    # Wiki 关系网络 CRUD
 │   ├── ai-router.ts      # AI 问答接口
-│   └── queries/          # 数据库查询
+│   └── lib/              # 工具库
+│       ├── embedding.ts  # Embedding 生成与向量搜索
+│       ├── tagging.ts    # AI 标签生成
+│       └── env.ts        # 环境变量配置
 ├── db/
 │   ├── schema.ts         # Drizzle ORM 表定义
 │   └── relations.ts      # 表关联关系
 ├── src/                  # 前端（React）
 │   ├── pages/            # 页面组件
 │   ├── components/       # UI 组件
-│   ├── hooks/            # 数据 hooks（双模式）
+│   ├── hooks/            # 数据 hooks（双模式：后端/localStorage）
 │   └── providers/        # tRPC provider
 ├── .env.example          # 环境变量模板
 ├── Dockerfile            # Docker 构建
@@ -153,10 +170,28 @@ app/
 ## AI 问答工作原理
 
 1. 用户提交问题
-2. 系统在本地 Wiki 和笔记中搜索匹配内容
-3. 如果找到匹配，将其作为上下文附加到 AI 提示词中
-4. AI 结合本地知识库和自身知识生成回答
-5. 问答记录自动保存，可一键转化为 Wiki 条目或笔记
+2. 系统将查询文本转为 embedding 向量
+3. 在本地 Wiki 的 embedding 中做余弦相似度搜索，找出最相关的条目
+4. 如果找到匹配，将其作为上下文附加到 AI 提示词中
+5. AI 结合本地知识库和自身知识生成回答
+6. 问答记录自动保存，可一键转化为 Wiki 条目
+
+## 向量语义搜索工作原理
+
+1. 创建/更新 Wiki 时，调用 Embedding API 将标题+摘要+内容转为向量
+2. 向量以 JSON 字符串形式存入 `wikis.embedding` 列
+3. 搜索时，将查询文本同样转为向量
+4. 与所有 Wiki 的 embedding 计算余弦相似度
+5. 按相似度排序返回结果（默认阈值 0.5）
+6. Embedding API 不可用时自动降级为 SQL LIKE 搜索
+
+## 知识网络工作原理
+
+1. 用户手动创建 Wiki 之间的关系（相关、依赖、引用、对比、包含）
+2. 系统也可以自动推断：共享 2+ 标签的 Wiki 之间自动生成"相关"关系
+3. 使用 AntV G6 力导向图可视化所有 Wiki 节点和关系边
+4. 标签也作为节点显示，实现标签聚类效果
+5. 支持节点搜索、hover 高亮、侧边详情面板
 
 ## 许可证
 
