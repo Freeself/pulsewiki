@@ -1,10 +1,11 @@
 import { relations } from "drizzle-orm";
-import { users, questions, wikis, wikiEdges } from "./schema";
+import { users, questions, wikis, wikiEdges, aiConfigs } from "./schema";
 
 export const usersRelations = relations(users, ({ many }) => ({
   questions: many(questions),
   wikis: many(wikis),
   wikiEdges: many(wikiEdges),
+  aiConfigs: many(aiConfigs),
 }));
 
 export const questionsRelations = relations(questions, ({ one }) => ({
@@ -37,5 +38,12 @@ export const wikiEdgesRelations = relations(wikiEdges, ({ one }) => ({
     fields: [wikiEdges.targetWikiId],
     references: [wikis.id],
     relationName: "targetWiki",
+  }),
+}));
+
+export const aiConfigsRelations = relations(aiConfigs, ({ one }) => ({
+  user: one(users, {
+    fields: [aiConfigs.userId],
+    references: [users.id],
   }),
 }));

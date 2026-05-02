@@ -618,3 +618,63 @@ export function useDeleteEdge() {
 
   return { mutate, isPending: pending || trpcMut.isPending }
 }
+
+// ===== AI Config =====
+export function useConfigList() {
+  const backendOk = useBackendAvailable()
+  const trpcQuery = trpc.config.list.useQuery(undefined, { enabled: backendOk, retry: false })
+  if (backendOk && trpcQuery.data) return { data: trpcQuery.data as import('@db/schema').AiConfig[], isLoading: trpcQuery.isLoading }
+  return { data: [] as import('@db/schema').AiConfig[], isLoading: false }
+}
+
+export function useCreateConfig() {
+  const trpcMut = trpc.config.create.useMutation()
+  const utils = trpc.useUtils()
+  const mutate = async (input: Parameters<typeof trpcMut.mutateAsync>[0]) => {
+    const result = await trpcMut.mutateAsync(input)
+    await utils.config.list.invalidate()
+    return result
+  }
+  return { mutate, isPending: trpcMut.isPending }
+}
+
+export function useUpdateConfig() {
+  const trpcMut = trpc.config.update.useMutation()
+  const utils = trpc.useUtils()
+  const mutate = async (input: Parameters<typeof trpcMut.mutateAsync>[0]) => {
+    const result = await trpcMut.mutateAsync(input)
+    await utils.config.list.invalidate()
+    return result
+  }
+  return { mutate, isPending: trpcMut.isPending }
+}
+
+export function useDeleteConfig() {
+  const trpcMut = trpc.config.delete.useMutation()
+  const utils = trpc.useUtils()
+  const mutate = async (id: number) => {
+    await trpcMut.mutateAsync({ id })
+    await utils.config.list.invalidate()
+  }
+  return { mutate, isPending: trpcMut.isPending }
+}
+
+export function useActivateConfig() {
+  const trpcMut = trpc.config.activate.useMutation()
+  const utils = trpc.useUtils()
+  const mutate = async (id: number) => {
+    await trpcMut.mutateAsync({ id })
+    await utils.config.list.invalidate()
+  }
+  return { mutate, isPending: trpcMut.isPending }
+}
+
+export function useDeactivateAllConfig() {
+  const trpcMut = trpc.config.deactivateAll.useMutation()
+  const utils = trpc.useUtils()
+  const mutate = async () => {
+    await trpcMut.mutateAsync()
+    await utils.config.list.invalidate()
+  }
+  return { mutate, isPending: trpcMut.isPending }
+}

@@ -4,6 +4,7 @@ import Wiki from './pages/Wiki'
 import WikiDetail from './pages/WikiDetail'
 import KnowledgeNetwork from './pages/KnowledgeNetwork'
 import Questions from './pages/Questions'
+import Settings from './pages/Settings'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/wiki/:id" element={<WikiDetail />} />
       <Route path="/network" element={<KnowledgeNetwork />} />
       <Route path="/questions" element={<Questions />} />
+      <Route path="/settings" element={<Settings />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

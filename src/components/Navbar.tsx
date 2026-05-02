@@ -5,6 +5,7 @@ import {
   BookOpen,
   Share2,
   MessageSquare,
+  Settings,
   Menu,
   X
 } from 'lucide-react'
@@ -18,6 +19,7 @@ export default function Navbar() {
     { path: '/wiki', label: 'Wiki', icon: BookOpen },
     { path: '/network', label: '知识网络', icon: Share2 },
     { path: '/questions', label: '问答', icon: MessageSquare },
+    { path: '/settings', label: '设置', icon: Settings },
   ]
 
   const isActive = (path: string) => {

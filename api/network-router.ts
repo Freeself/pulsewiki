@@ -3,19 +3,20 @@ import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { wikis, wikiEdges } from "@db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
-import { env } from "./lib/env";
+import { getActiveConfig } from "./lib/config-reader";
 
 async function callAI(messages: Array<{ role: string; content: string }>) {
-  const url = `${env.aiBaseUrl}/chat/completions`;
+  const config = await getActiveConfig();
+  const url = `${config.aiBaseUrl}/chat/completions`;
   try {
     const resp = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${env.aiApiKey}`,
+        Authorization: `Bearer ${config.aiApiKey}`,
       },
       body: JSON.stringify({
-        model: env.aiModel,
+        model: config.aiModel,
         messages,
         temperature: 0.3,
       }),

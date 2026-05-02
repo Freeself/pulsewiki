@@ -3,7 +3,7 @@ import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { questions, wikis } from "@db/schema";
 import { eq, and, like, or, desc } from "drizzle-orm";
-import { env } from "./lib/env";
+import { getActiveConfig } from "./lib/config-reader";
 import { generateEmbedding, findSimilarWikis } from "./lib/embedding";
 
 // Search local knowledge (wikis) for relevant content using vector search
@@ -39,17 +39,18 @@ async function searchLocalKnowledge(userId: number, query: string) {
 }
 
 async function callAI(messages: Array<{ role: string; content: string }>) {
-  const url = `${env.aiBaseUrl}/chat/completions`;
-  console.log(`[AI] Calling ${url} model=${env.aiModel}`);
+  const config = await getActiveConfig();
+  const url = `${config.aiBaseUrl}/chat/completions`;
+  console.log(`[AI] Calling ${url} model=${config.aiModel}`);
   try {
     const resp = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${env.aiApiKey}`,
+        Authorization: `Bearer ${config.aiApiKey}`,
       },
       body: JSON.stringify({
-        model: env.aiModel,
+        model: config.aiModel,
         messages,
         temperature: 0.7,
       }),

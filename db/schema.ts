@@ -64,3 +64,23 @@ export const wikiEdges = sqliteTable("wiki_edges", {
 
 export type WikiEdge = typeof wikiEdges.$inferSelect;
 export type InsertWikiEdge = typeof wikiEdges.$inferInsert;
+
+export const aiConfigs = sqliteTable("ai_configs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  name: text("name").notNull(),
+  isActive: integer("isActive", { mode: "boolean" }).notNull().default(false),
+  aiBaseUrl: text("aiBaseUrl"),
+  aiApiKey: text("aiApiKey"),
+  aiModel: text("aiModel"),
+  aiEmbeddingBaseUrl: text("aiEmbeddingBaseUrl"),
+  aiEmbeddingApiKey: text("aiEmbeddingApiKey"),
+  aiEmbeddingModel: text("aiEmbeddingModel"),
+  embeddingApiFormat: text("embeddingApiFormat", { enum: ["openai", "dashscope"] }).notNull().default("dashscope"),
+  embeddingThreshold: text("embeddingThreshold").notNull().default("0.5"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()).$onUpdate(() => new Date()),
+});
+
+export type AiConfig = typeof aiConfigs.$inferSelect;
+export type InsertAiConfig = typeof aiConfigs.$inferInsert;

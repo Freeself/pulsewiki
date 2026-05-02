@@ -1,22 +1,23 @@
-import { env } from "./env";
+import { getActiveConfig } from "./config-reader";
 
 export async function generateTags(
   title: string,
   content: string,
   summary?: string | null
 ): Promise<string[] | null> {
-  if (!env.aiBaseUrl) return null;
+  const config = await getActiveConfig();
+  if (!config.aiBaseUrl) return null;
 
-  const url = `${env.aiBaseUrl}/chat/completions`;
+  const url = `${config.aiBaseUrl}/chat/completions`;
   try {
     const resp = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${env.aiApiKey}`,
+        Authorization: `Bearer ${config.aiApiKey}`,
       },
       body: JSON.stringify({
-        model: env.aiModel,
+        model: config.aiModel,
         messages: [
           {
             role: "system",

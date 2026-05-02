@@ -1,28 +1,39 @@
-import { env } from "./env";
+import { getActiveConfig, type ResolvedAIConfig } from "./config-reader";
 import { getDb } from "../queries/connection";
 import { wikis } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export async function generateEmbedding(
   text: string
 ): Promise<number[] | null> {
-  const baseUrl = env.aiEmbeddingBaseUrl;
+  const config = await getActiveConfig();
+  const baseUrl = config.aiEmbeddingBaseUrl;
   if (!baseUrl) return null;
 
   const inputText = text.slice(0, 8000).trim();
   if (!inputText) return null;
 
-  const url = `${baseUrl}/services/embeddings/text-embedding/text-embedding`;
+  if (config.embeddingApiFormat === "openai") {
+    return generateEmbeddingOpenAI(config, inputText);
+  }
+  return generateEmbeddingDashScope(config, inputText);
+}
+
+async function generateEmbeddingDashScope(
+  config: ResolvedAIConfig,
+  text: string
+): Promise<number[] | null> {
+  const url = `${config.aiEmbeddingBaseUrl}/services/embeddings/text-embedding/text-embedding`;
   try {
     const resp = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${env.aiEmbeddingApiKey}`,
+        Authorization: `Bearer ${config.aiEmbeddingApiKey}`,
       },
       body: JSON.stringify({
-        model: env.aiEmbeddingModel,
-        input: { texts: [inputText] },
+        model: config.aiEmbeddingModel,
+        input: { texts: [text] },
       }),
     });
 
@@ -39,6 +50,41 @@ export async function generateEmbedding(
     return emb;
   } catch (error) {
     console.error("[Embedding] API error:", error);
+    return null;
+  }
+}
+
+async function generateEmbeddingOpenAI(
+  config: ResolvedAIConfig,
+  text: string
+): Promise<number[] | null> {
+  const url = `${config.aiEmbeddingBaseUrl}/embeddings`;
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.aiEmbeddingApiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.aiEmbeddingModel,
+        input: text,
+      }),
+    });
+
+    if (!resp.ok) {
+      console.warn(`[Embedding] OpenAI API failed (${resp.status}): ${await resp.text()}`);
+      return null;
+    }
+
+    const data = (await resp.json()) as {
+      data: Array<{ embedding: number[] }>;
+    };
+    const emb = data.data?.[0]?.embedding ?? null;
+    console.log(`[Embedding] Generated (${emb?.length ?? 0} dims)`);
+    return emb;
+  } catch (error) {
+    console.error("[Embedding] OpenAI API error:", error);
     return null;
   }
 }
@@ -60,9 +106,14 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 export async function findSimilarWikis(
   userId: number,
   queryEmbedding: number[],
-  threshold = env.embeddingThreshold,
+  threshold?: number,
   limit = 10
 ) {
+  if (threshold === undefined) {
+    const config = await getActiveConfig();
+    threshold = config.embeddingThreshold;
+  }
+
   const db = getDb();
   const allWikis = await db
     .select()
