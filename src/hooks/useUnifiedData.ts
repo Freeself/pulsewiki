@@ -219,14 +219,19 @@ export function useDeleteQuestion() {
   const backendOk = useBackendAvailable()
   const trpcMut = trpc.knowledge.deleteQuestion.useMutation()
   const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+  const utils = trpc.useUtils()
 
   const mutate = async (id: number) => {
     setPending(true)
     try {
       if (backendOk) {
         await trpcMut.mutateAsync({ id })
+        await utils.knowledge.listQuestions.invalidate()
+        await utils.knowledge.getStats.invalidate()
       } else {
         deleteLocalQuestion(id)
+        refresh()
       }
     } finally {
       setPending(false)
@@ -286,10 +291,13 @@ export function useUpdateWikiTags() {
 export function useRegenerateTags() {
   const backendOk = useBackendAvailable()
   const trpcMut = trpc.knowledge.regenerateTags.useMutation()
+  const utils = trpc.useUtils()
 
   const mutate = async (id: number): Promise<string[]> => {
     if (backendOk) {
       const result = await trpcMut.mutateAsync({ id })
+      await utils.knowledge.getWiki.invalidate({ id })
+      await utils.knowledge.listWikis.invalidate()
       return (result as { tags: string[] }).tags
     }
     return []
@@ -425,12 +433,17 @@ export function useConvertToWiki() {
   const backendOk = useBackendAvailable()
   const trpcMut = trpc.ai.convertToWiki.useMutation()
   const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+  const utils = trpc.useUtils()
 
   const mutate = async (questionId: number) => {
     setPending(true)
     try {
       if (backendOk) {
         await trpcMut.mutateAsync({ questionId })
+        await utils.knowledge.listQuestions.invalidate()
+        await utils.knowledge.listWikis.invalidate()
+        await utils.knowledge.getStats.invalidate()
       } else {
         const questions = getLocalQuestions()
         const q = questions.find(q2 => q2.id === questionId)
@@ -443,13 +456,13 @@ export function useConvertToWiki() {
             category: 'AI Generated',
             relatedQuestionId: q.id,
           })
-          // Mark as converted
           const idx = questions.findIndex(q2 => q2.id === questionId)
           if (idx >= 0) {
             questions[idx] = { ...questions[idx], isConvertedToWiki: 'yes' as const }
             localStorage.setItem('pw_questions', JSON.stringify(questions))
           }
         }
+        refresh()
       }
     } finally {
       setPending(false)
@@ -464,12 +477,17 @@ export function useAutoOrganize() {
   const backendOk = useBackendAvailable()
   const trpcMut = trpc.ai.autoOrganize.useMutation()
   const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+  const utils = trpc.useUtils()
 
   const mutate = async () => {
     setPending(true)
     try {
       if (backendOk) {
         await trpcMut.mutateAsync()
+        await utils.knowledge.listQuestions.invalidate()
+        await utils.knowledge.listWikis.invalidate()
+        await utils.knowledge.getStats.invalidate()
       } else {
         const questions = getLocalQuestions().filter(q => q.isConvertedToWiki === 'no' && q.source === 'ai')
         for (const q of questions.slice(0, 10)) {
@@ -490,6 +508,7 @@ export function useAutoOrganize() {
           }
         }
         localStorage.setItem('pw_questions', JSON.stringify(all))
+        refresh()
       }
     } finally {
       setPending(false)

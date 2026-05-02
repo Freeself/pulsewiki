@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
 import ReactMarkdown from 'react-markdown'
@@ -22,8 +22,6 @@ export default function Questions() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
-  const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
 
   const { data: questions, isLoading } = useQuestionList(search || undefined)
   const deleteMut = useDeleteQuestion()
@@ -32,17 +30,14 @@ export default function Questions() {
 
   const handleDelete = async (id: number) => {
     await deleteMut.mutate(id)
-    refresh()
   }
 
   const handleConvertWiki = async (id: number) => {
     await convertWikiMut.mutate(id)
-    refresh()
   }
 
   const handleAutoOrganize = async () => {
     await autoOrgMut.mutate()
-    refresh()
   }
 
   const sourceConfig: Record<string, { color: string; bg: string; icon: typeof Sparkles; label: string }> = {
@@ -95,7 +90,7 @@ export default function Questions() {
             <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
           </div>
         ) : questions && questions.length > 0 ? (
-          <div key={refreshKey} className="space-y-3">
+          <div className="space-y-3">
             {questions.map((q) => {
               const cfg = sourceConfig[q.source] ?? sourceConfig.ai
               const Icon = cfg.icon

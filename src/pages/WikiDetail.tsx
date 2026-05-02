@@ -97,10 +97,7 @@ export default function WikiDetail() {
   }
 
   const handleRegenerateTags = async () => {
-    const tags = await regenerateTagsMut.mutate(wikiId)
-    if (tags.length > 0) {
-      await updateTagsMut.mutate(wikiId, tags)
-    }
+    await regenerateTagsMut.mutate(wikiId)
   }
 
   // Relation handlers
