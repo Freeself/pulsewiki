@@ -45,6 +45,7 @@ export function useWikiList(search?: string, category?: string, tag?: string) {
     { search, category, tag },
     { enabled: backendOk, retry: false }
   )
+  const { version } = useLocalDataRefresh()
 
   const localData = useMemo(() => {
     let wikis = getLocalWikis()
@@ -68,7 +69,7 @@ export function useWikiList(search?: string, category?: string, tag?: string) {
       })
     }
     return wikis.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [search, category, tag, backendOk])
+  }, [search, category, tag, backendOk, version])
 
   if (backendOk && trpcQuery.data) return { data: trpcQuery.data as unknown as LocalWiki[], isLoading: trpcQuery.isLoading, source: 'backend' as const }
   return { data: localData, isLoading: false, source: 'local' as const }
@@ -77,6 +78,7 @@ export function useWikiList(search?: string, category?: string, tag?: string) {
 export function useWikiTags() {
   const backendOk = useBackendAvailable()
   const trpcQuery = trpc.knowledge.getWikiTags.useQuery(undefined, { enabled: backendOk, retry: false })
+  const { version } = useLocalDataRefresh()
 
   const localTags = useMemo(() => {
     const wikis = getLocalWikis()
@@ -89,7 +91,7 @@ export function useWikiTags() {
       } catch { continue }
     }
     return Array.from(tagSet).sort()
-  }, [backendOk])
+  }, [backendOk, version])
 
   if (backendOk && trpcQuery.data) return trpcQuery.data as string[]
   return localTags
@@ -160,15 +162,20 @@ export function useDeleteWiki() {
   const backendOk = useBackendAvailable()
   const trpcMut = trpc.knowledge.deleteWiki.useMutation()
   const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+  const utils = trpc.useUtils()
 
   const mutate = async (id: number) => {
     setPending(true)
     try {
       if (backendOk) {
         await trpcMut.mutateAsync({ id })
+        await utils.knowledge.listWikis.invalidate()
+        await utils.network.getNetwork.invalidate()
       } else {
         deleteLocalWiki(id)
         deleteLocalEdgesForWiki(id)
+        refresh()
       }
     } finally {
       setPending(false)
@@ -227,6 +234,7 @@ export function useDeleteQuestion() {
 export function useStats() {
   const backendOk = useBackendAvailable()
   const trpcQuery = trpc.knowledge.getStats.useQuery(undefined, { enabled: backendOk, retry: false })
+  const { version } = useLocalDataRefresh()
 
   if (backendOk && trpcQuery.data) return trpcQuery.data
   return getLocalStats()
