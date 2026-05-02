@@ -10,6 +10,7 @@ export interface LocalWiki {
   category: string | null
   relatedQuestionId: number | null
   embedding?: string | null
+  tags?: string | null
   createdAt: Date
   updatedAt: Date
 }

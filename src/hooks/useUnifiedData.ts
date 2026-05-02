@@ -35,10 +35,10 @@ function useBackendAvailable() {
 }
 
 // ===== Wikis =====
-export function useWikiList(search?: string, category?: string) {
+export function useWikiList(search?: string, category?: string, tag?: string) {
   const backendOk = useBackendAvailable()
   const trpcQuery = trpc.knowledge.listWikis.useQuery(
-    { search, category },
+    { search, category, tag },
     { enabled: backendOk, retry: false }
   )
 
@@ -54,11 +54,41 @@ export function useWikiList(search?: string, category?: string) {
     if (category) {
       wikis = wikis.filter(w => w.category === category)
     }
+    if (tag) {
+      wikis = wikis.filter(w => {
+        if (!w.tags) return false
+        try {
+          const parsed = JSON.parse(w.tags) as string[]
+          return parsed.includes(tag)
+        } catch { return false }
+      })
+    }
     return wikis.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [search, category, backendOk])
+  }, [search, category, tag, backendOk])
 
   if (backendOk && trpcQuery.data) return { data: trpcQuery.data as unknown as LocalWiki[], isLoading: trpcQuery.isLoading, source: 'backend' as const }
   return { data: localData, isLoading: false, source: 'local' as const }
+}
+
+export function useWikiTags() {
+  const backendOk = useBackendAvailable()
+  const trpcQuery = trpc.knowledge.getWikiTags.useQuery(undefined, { enabled: backendOk, retry: false })
+
+  const localTags = useMemo(() => {
+    const wikis = getLocalWikis()
+    const tagSet = new Set<string>()
+    for (const w of wikis) {
+      if (!w.tags) continue
+      try {
+        const parsed = JSON.parse(w.tags) as string[]
+        for (const t of parsed) tagSet.add(t)
+      } catch { continue }
+    }
+    return Array.from(tagSet).sort()
+  }, [backendOk])
+
+  if (backendOk && trpcQuery.data) return trpcQuery.data as string[]
+  return localTags
 }
 
 export function useWiki(id: number) {
@@ -201,6 +231,47 @@ export function useStats() {
 export function useBackfillEmbeddings() {
   const trpcMut = trpc.knowledge.backfillEmbeddings.useMutation()
   return { mutate: trpcMut.mutateAsync, isPending: trpcMut.isPending, data: trpcMut.data }
+}
+
+export function useUpdateWikiTags() {
+  const backendOk = useBackendAvailable()
+  const trpcMut = trpc.knowledge.updateWikiTags.useMutation()
+  const [pending, setPending] = useState(false)
+
+  const mutate = async (id: number, tags: string[]) => {
+    setPending(true)
+    try {
+      if (backendOk) {
+        await trpcMut.mutateAsync({ id, tags })
+      } else {
+        const wikis = getLocalWikis()
+        const idx = wikis.findIndex(w => w.id === id)
+        if (idx >= 0) {
+          wikis[idx] = { ...wikis[idx], tags: JSON.stringify(tags), updatedAt: new Date() }
+          localStorage.setItem('pw_wikis', JSON.stringify(wikis))
+        }
+      }
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return { mutate, isPending: pending || trpcMut.isPending }
+}
+
+export function useRegenerateTags() {
+  const backendOk = useBackendAvailable()
+  const trpcMut = trpc.knowledge.regenerateTags.useMutation()
+
+  const mutate = async (id: number): Promise<string[]> => {
+    if (backendOk) {
+      const result = await trpcMut.mutateAsync({ id })
+      return (result as { tags: string[] }).tags
+    }
+    return []
+  }
+
+  return { mutate, isPending: trpcMut.isPending }
 }
 
 // ===== Knowledge Network =====

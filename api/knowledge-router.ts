@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { questions, wikis } from "@db/schema";
 import { eq, and, desc, like, or } from "drizzle-orm";
 import { generateEmbedding, findSimilarWikis } from "./lib/embedding";
+import { generateTags } from "./lib/tagging";
 
 export const knowledgeRouter = createRouter({
   // ===== Questions =====
@@ -65,11 +66,25 @@ export const knowledgeRouter = createRouter({
   listWikis: publicQuery
     .input(
       z
-        .object({ search: z.string().optional(), category: z.string().optional() })
+        .object({ search: z.string().optional(), category: z.string().optional(), tag: z.string().optional() })
         .optional()
     )
     .query(async ({ ctx, input }) => {
       const db = getDb();
+
+      // Helper to filter by tag
+      const filterByTag = <T extends { tags?: string | null }>(items: T[]): T[] => {
+        if (!input?.tag) return items;
+        return items.filter((w) => {
+          if (!w.tags) return false;
+          try {
+            const parsed = JSON.parse(w.tags) as string[];
+            return parsed.includes(input.tag!);
+          } catch {
+            return false;
+          }
+        });
+      };
 
       // Vector search when search term is provided
       if (input?.search) {
@@ -80,6 +95,7 @@ export const knowledgeRouter = createRouter({
           if (input.category) {
             results = results.filter((w) => w.category === input.category);
           }
+          results = filterByTag(results);
           return results;
         }
         // Fallback to LIKE search
@@ -100,6 +116,11 @@ export const knowledgeRouter = createRouter({
 
       if (input?.category) {
         conditions.push(eq(wikis.category, input.category));
+      }
+
+      // Tag filtering via LIKE on JSON string
+      if (input?.tag) {
+        conditions.push(like(wikis.tags, `%${input.tag}%`));
       }
 
       return db
@@ -133,9 +154,12 @@ export const knowledgeRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
 
-      // Generate embedding from title + summary + content excerpt
+      // Generate embedding and tags in parallel
       const embText = `${input.title}\n${input.summary || ""}\n${input.content.slice(0, 2000)}`;
-      const embedding = await generateEmbedding(embText);
+      const [embedding, tags] = await Promise.all([
+        generateEmbedding(embText),
+        generateTags(input.title, input.content, input.summary),
+      ]);
 
       const [result] = await db
         .insert(wikis)
@@ -146,6 +170,7 @@ export const knowledgeRouter = createRouter({
           summary: input.summary,
           category: input.category,
           embedding: embedding ? JSON.stringify(embedding) : null,
+          tags: tags ? JSON.stringify(tags) : null,
         })
         .returning();
       return { id: result.id };
@@ -165,7 +190,7 @@ export const knowledgeRouter = createRouter({
       const db = getDb();
       const { id, ...updates } = input;
 
-      // Regenerate embedding if title or content changed
+      // Regenerate embedding and tags if title or content changed
       if (updates.title || updates.content) {
         const wiki = await db
           .select()
@@ -177,9 +202,15 @@ export const knowledgeRouter = createRouter({
           const content = updates.content ?? wiki[0].content;
           const summary = updates.summary ?? wiki[0].summary ?? "";
           const embText = `${title}\n${summary}\n${content.slice(0, 2000)}`;
-          const embedding = await generateEmbedding(embText);
+          const [embedding, tags] = await Promise.all([
+            generateEmbedding(embText),
+            generateTags(title, content, summary),
+          ]);
           if (embedding) {
             (updates as any).embedding = JSON.stringify(embedding);
+          }
+          if (tags) {
+            (updates as any).tags = JSON.stringify(tags);
           }
         }
       }
@@ -201,6 +232,39 @@ export const knowledgeRouter = createRouter({
       return { success: true };
     }),
 
+  updateWikiTags: publicQuery
+    .input(z.object({ id: z.number(), tags: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      await db
+        .update(wikis)
+        .set({ tags: JSON.stringify(input.tags) })
+        .where(and(eq(wikis.id, input.id), eq(wikis.userId, ctx.user.id)));
+      return { success: true };
+    }),
+
+  regenerateTags: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const result = await db
+        .select()
+        .from(wikis)
+        .where(and(eq(wikis.id, input.id), eq(wikis.userId, ctx.user.id)))
+        .limit(1);
+      const wiki = result[0];
+      if (!wiki) throw new Error("Wiki not found");
+
+      const tags = await generateTags(wiki.title, wiki.content, wiki.summary);
+      if (tags) {
+        await db
+          .update(wikis)
+          .set({ tags: JSON.stringify(tags) })
+          .where(eq(wikis.id, wiki.id));
+      }
+      return { tags: tags ?? [] };
+    }),
+
   backfillEmbeddings: publicQuery.mutation(async ({ ctx }) => {
     const db = getDb();
     const allWikis = await db
@@ -208,18 +272,21 @@ export const knowledgeRouter = createRouter({
       .from(wikis)
       .where(eq(wikis.userId, ctx.user.id));
 
-    const missing = allWikis.filter((w) => !w.embedding);
+    const missing = allWikis.filter((w) => !w.embedding || !w.tags);
     if (missing.length === 0) return { updated: 0, total: allWikis.length };
 
     let updated = 0;
     for (const wiki of missing) {
       const embText = `${wiki.title}\n${wiki.summary || ""}\n${wiki.content.slice(0, 2000)}`;
-      const embedding = await generateEmbedding(embText);
-      if (embedding) {
-        await db
-          .update(wikis)
-          .set({ embedding: JSON.stringify(embedding) })
-          .where(eq(wikis.id, wiki.id));
+      const [embedding, tags] = await Promise.all([
+        wiki.embedding ? null : generateEmbedding(embText),
+        wiki.tags ? null : generateTags(wiki.title, wiki.content, wiki.summary),
+      ]);
+      const updates: Record<string, string | null> = {};
+      if (embedding) updates.embedding = JSON.stringify(embedding);
+      if (tags) updates.tags = JSON.stringify(tags);
+      if (Object.keys(updates).length > 0) {
+        await db.update(wikis).set(updates).where(eq(wikis.id, wiki.id));
         updated++;
       }
     }
@@ -235,6 +302,26 @@ export const knowledgeRouter = createRouter({
       .where(eq(wikis.userId, ctx.user.id))
       .groupBy(wikis.category);
     return result.map((r) => r.category).filter(Boolean) as string[];
+  }),
+
+  getWikiTags: publicQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const allWikis = await db
+      .select({ tags: wikis.tags })
+      .from(wikis)
+      .where(eq(wikis.userId, ctx.user.id));
+
+    const tagSet = new Set<string>();
+    for (const w of allWikis) {
+      if (!w.tags) continue;
+      try {
+        const parsed = JSON.parse(w.tags) as string[];
+        for (const t of parsed) tagSet.add(t);
+      } catch {
+        continue;
+      }
+    }
+    return Array.from(tagSet).sort();
   }),
 
   // ===== Stats =====

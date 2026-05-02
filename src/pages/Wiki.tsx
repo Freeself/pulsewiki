@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
-import { useWikiList, useCreateWiki, useDeleteWiki, useBackfillEmbeddings } from '@/hooks/useUnifiedData'
+import { useWikiList, useCreateWiki, useDeleteWiki, useBackfillEmbeddings, useWikiTags } from '@/hooks/useUnifiedData'
 import {
   BookOpen,
   Search,
   Plus,
   Loader2,
   Trash2,
+  X,
   Clock,
   Tag,
   FileText,
@@ -18,13 +19,15 @@ import {
 export default function Wiki() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
   const [newCategory, setNewCategory] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
 
-  const { data: wikis, isLoading } = useWikiList(search || undefined)
+  const { data: wikis, isLoading } = useWikiList(search || undefined, undefined, selectedTag || undefined)
+  const allTags = useWikiTags()
   const createMut = useCreateWiki()
   const deleteMut = useDeleteWiki()
   const backfillMut = useBackfillEmbeddings()
@@ -102,7 +105,7 @@ export default function Wiki() {
         )}
 
         {/* Search */}
-        <div className="relative mb-6">
+        <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
           <input
             type="text"
@@ -112,6 +115,32 @@ export default function Wiki() {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#171717] border border-white/5 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-purple-500/30 transition-all"
           />
         </div>
+
+        {/* Tag Filter */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-6">
+            {selectedTag && (
+              <button
+                onClick={() => setSelectedTag(null)}
+                className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-all"
+              >
+                <X className="w-3 h-3" />
+                {selectedTag}
+              </button>
+            )}
+            {allTags
+              .filter((t) => t !== selectedTag)
+              .map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(tag)}
+                  className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.03] text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.06] transition-all"
+                >
+                  {tag}
+                </button>
+              ))}
+          </div>
+        )}
 
         {/* Create Form */}
         {showCreate && (
@@ -194,6 +223,24 @@ export default function Wiki() {
                     {wiki.summary && (
                       <p className="text-xs text-neutral-500 line-clamp-2 mb-2">{wiki.summary}</p>
                     )}
+                    {wiki.tags && (() => {
+                      try {
+                        const parsed = JSON.parse(wiki.tags) as string[]
+                        return parsed.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {parsed.map((t) => (
+                              <span
+                                key={t}
+                                onClick={(e) => { e.stopPropagation(); setSelectedTag(t) }}
+                                className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 cursor-pointer hover:bg-cyan-500/20 transition-all"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null
+                      } catch { return null }
+                    })()}
                     <div className="flex items-center gap-3 text-[10px] text-neutral-600">
                       <span className="flex items-center gap-1">
                         <Clock className="w-2.5 h-2.5" />
