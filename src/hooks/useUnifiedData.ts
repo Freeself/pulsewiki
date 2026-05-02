@@ -14,6 +14,9 @@ import {
   buildLocalNetwork,
   useLocalDataRefresh,
   seedDemoData,
+  addLocalEdge,
+  updateLocalEdge,
+  deleteLocalEdge,
   type LocalWiki,
   type LocalWikiEdge,
   type LocalQuestion,
@@ -466,6 +469,107 @@ export function useAutoOrganize() {
           }
         }
         localStorage.setItem('pw_questions', JSON.stringify(all))
+      }
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return { mutate, isPending: pending || trpcMut.isPending }
+}
+
+// ===== Edge CRUD =====
+export function useWikiEdges(wikiId: number) {
+  const backendOk = useBackendAvailable()
+  const trpcQuery = trpc.network.getWikiEdges.useQuery(
+    { wikiId },
+    { enabled: backendOk && !!wikiId, retry: false }
+  )
+  const { version, refresh } = useLocalDataRefresh()
+
+  const localData = useMemo(() => {
+    const edges = getLocalEdges()
+    const wikis = getLocalWikis()
+    const wikiMap = new Map(wikis.map(w => [w.id, w.title]))
+    return edges
+      .filter(e => e.sourceWikiId === wikiId || e.targetWikiId === wikiId)
+      .map(e => ({
+        ...e,
+        connectedWikiId: e.sourceWikiId === wikiId ? e.targetWikiId : e.sourceWikiId,
+        connectedWikiTitle: wikiMap.get(e.sourceWikiId === wikiId ? e.targetWikiId : e.sourceWikiId) ?? '未知',
+      }))
+  }, [wikiId, version])
+
+  if (backendOk && trpcQuery.data) return { data: trpcQuery.data as any[], isLoading: trpcQuery.isLoading, refetch: trpcQuery.refetch }
+  return { data: localData, isLoading: false, refetch: refresh }
+}
+
+export function useCreateEdge() {
+  const backendOk = useBackendAvailable()
+  const trpcMut = trpc.network.createEdge.useMutation()
+  const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+
+  const mutate = async (input: { sourceWikiId: number; targetWikiId: number; label: string; strength: number }) => {
+    setPending(true)
+    try {
+      if (backendOk) {
+        await trpcMut.mutateAsync(input)
+      } else {
+        addLocalEdge({
+          userId: 0,
+          sourceWikiId: input.sourceWikiId,
+          targetWikiId: input.targetWikiId,
+          label: input.label,
+          strength: String(input.strength),
+        })
+        refresh()
+      }
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return { mutate, isPending: pending || trpcMut.isPending }
+}
+
+export function useUpdateEdge() {
+  const backendOk = useBackendAvailable()
+  const trpcMut = trpc.network.updateEdge.useMutation()
+  const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+
+  const mutate = async (input: { id: number; label?: string; strength?: number }) => {
+    setPending(true)
+    try {
+      if (backendOk) {
+        await trpcMut.mutateAsync(input)
+      } else {
+        updateLocalEdge(input.id, { label: input.label, strength: input.strength !== undefined ? String(input.strength) : undefined } as any)
+        refresh()
+      }
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return { mutate, isPending: pending || trpcMut.isPending }
+}
+
+export function useDeleteEdge() {
+  const backendOk = useBackendAvailable()
+  const trpcMut = trpc.network.deleteEdge.useMutation()
+  const [pending, setPending] = useState(false)
+  const { refresh } = useLocalDataRefresh()
+
+  const mutate = async (id: number) => {
+    setPending(true)
+    try {
+      if (backendOk) {
+        await trpcMut.mutateAsync({ id })
+      } else {
+        deleteLocalEdge(id)
+        refresh()
       }
     } finally {
       setPending(false)

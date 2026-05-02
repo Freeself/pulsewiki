@@ -213,4 +213,131 @@ export const networkRouter = createRouter({
         relation: edgeMap.get(w.id) ?? { label: "相关", strength: 0.5 },
       }));
     }),
+
+  // ===== Edge CRUD =====
+  createEdge: publicQuery
+    .input(
+      z.object({
+        sourceWikiId: z.number(),
+        targetWikiId: z.number(),
+        label: z.string().min(1).max(20),
+        strength: z.number().min(0).max(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      // Prevent duplicate edges
+      const existing = await db
+        .select()
+        .from(wikiEdges)
+        .where(
+          and(
+            eq(wikiEdges.userId, ctx.user.id),
+            or(
+              and(
+                eq(wikiEdges.sourceWikiId, input.sourceWikiId),
+                eq(wikiEdges.targetWikiId, input.targetWikiId)
+              ),
+              and(
+                eq(wikiEdges.sourceWikiId, input.targetWikiId),
+                eq(wikiEdges.targetWikiId, input.sourceWikiId)
+              )
+            )
+          )
+        )
+        .limit(1);
+      if (existing.length > 0) throw new Error("关系已存在");
+
+      const [result] = await db
+        .insert(wikiEdges)
+        .values({
+          userId: ctx.user.id,
+          sourceWikiId: input.sourceWikiId,
+          targetWikiId: input.targetWikiId,
+          label: input.label,
+          strength: String(input.strength),
+        })
+        .returning();
+      return { id: result.id };
+    }),
+
+  updateEdge: publicQuery
+    .input(
+      z.object({
+        id: z.number(),
+        label: z.string().min(1).max(20).optional(),
+        strength: z.number().min(0).max(1).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const { id, ...updates } = input;
+      const setObj: Record<string, any> = {};
+      if (updates.label !== undefined) setObj.label = updates.label;
+      if (updates.strength !== undefined) setObj.strength = String(updates.strength);
+      if (Object.keys(setObj).length === 0) return { success: true };
+
+      await db
+        .update(wikiEdges)
+        .set(setObj)
+        .where(and(eq(wikiEdges.id, id), eq(wikiEdges.userId, ctx.user.id)));
+      return { success: true };
+    }),
+
+  deleteEdge: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      await db
+        .delete(wikiEdges)
+        .where(
+          and(eq(wikiEdges.id, input.id), eq(wikiEdges.userId, ctx.user.id))
+        );
+      return { success: true };
+    }),
+
+  // Get edges for a specific wiki
+  getWikiEdges: publicQuery
+    .input(z.object({ wikiId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const edges = await db
+        .select()
+        .from(wikiEdges)
+        .where(
+          and(
+            eq(wikiEdges.userId, ctx.user.id),
+            or(
+              eq(wikiEdges.sourceWikiId, input.wikiId),
+              eq(wikiEdges.targetWikiId, input.wikiId)
+            )
+          )
+        );
+
+      // Get connected wiki titles
+      const connectedIds = new Set<number>();
+      for (const e of edges) {
+        if (e.sourceWikiId !== input.wikiId) connectedIds.add(e.sourceWikiId);
+        if (e.targetWikiId !== input.wikiId) connectedIds.add(e.targetWikiId);
+      }
+
+      let wikiMap = new Map<number, string>();
+      if (connectedIds.size > 0) {
+        const allWikis = await db
+          .select({ id: wikis.id, title: wikis.title })
+          .from(wikis)
+          .where(eq(wikis.userId, ctx.user.id));
+        for (const w of allWikis) wikiMap.set(w.id, w.title);
+      }
+
+      return edges.map((e) => ({
+        ...e,
+        connectedWikiId:
+          e.sourceWikiId === input.wikiId ? e.targetWikiId : e.sourceWikiId,
+        connectedWikiTitle:
+          wikiMap.get(
+            e.sourceWikiId === input.wikiId ? e.targetWikiId : e.sourceWikiId
+          ) ?? "未知",
+      }));
+    }),
 });

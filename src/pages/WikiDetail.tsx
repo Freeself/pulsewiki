@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useWiki, useUpdateWiki, useDeleteWiki, useRelatedWikis, useUpdateWikiTags, useRegenerateTags } from '@/hooks/useUnifiedData'
+import { useWiki, useUpdateWiki, useDeleteWiki, useUpdateWikiTags, useRegenerateTags, useWikiList, useWikiEdges, useCreateEdge, useUpdateEdge, useDeleteEdge } from '@/hooks/useUnifiedData'
 import {
   ArrowLeft,
   Loader2,
@@ -17,6 +17,7 @@ import {
   Link2,
   Plus,
   Sparkles,
+  ChevronDown,
 } from 'lucide-react'
 
 export default function WikiDetail() {
@@ -28,11 +29,15 @@ export default function WikiDetail() {
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
 
   const { data: wiki, isLoading } = useWiki(wikiId)
-  const { data: relatedWikis } = useRelatedWikis(wikiId)
   const updateMut = useUpdateWiki()
   const deleteMut = useDeleteWiki()
   const updateTagsMut = useUpdateWikiTags()
   const regenerateTagsMut = useRegenerateTags()
+  const { data: wikiEdges, refetch: refetchEdges } = useWikiEdges(wikiId)
+  const { data: allWikis } = useWikiList()
+  const createEdgeMut = useCreateEdge()
+  const updateEdgeMut = useUpdateEdge()
+  const deleteEdgeMut = useDeleteEdge()
 
   const [isEditing, setIsEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -43,6 +48,18 @@ export default function WikiDetail() {
   const [isEditingTags, setIsEditingTags] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [editingTags, setEditingTags] = useState<string[]>([])
+
+  // Relation editing state
+  const [showAddRelation, setShowAddRelation] = useState(false)
+  const [relTargetId, setRelTargetId] = useState<number | null>(null)
+  const [relLabel, setRelLabel] = useState('相关')
+  const [relStrength, setRelStrength] = useState(0.5)
+  const [editingEdgeId, setEditingEdgeId] = useState<number | null>(null)
+  const [editRelLabel, setEditRelLabel] = useState('')
+  const [editRelStrength, setEditRelStrength] = useState(0.5)
+
+  const relationLabels = ['相关', '依赖', '引用', '对比', '包含']
+  const wikiMap = new Map((allWikis ?? []).map(w => [w.id, w]))
 
   const parseTags = (tagsStr?: string | null): string[] => {
     if (!tagsStr) return []
@@ -88,6 +105,40 @@ export default function WikiDetail() {
       await updateTagsMut.mutate(wikiId, tags)
       refresh()
     }
+  }
+
+  // Relation handlers
+  const handleCreateRelation = async () => {
+    if (!relTargetId || relTargetId === wikiId) return
+    await createEdgeMut.mutate({
+      sourceWikiId: wikiId,
+      targetWikiId: relTargetId,
+      label: relLabel,
+      strength: relStrength,
+    })
+    setShowAddRelation(false)
+    setRelTargetId(null)
+    setRelLabel('相关')
+    setRelStrength(0.5)
+    refetchEdges()
+  }
+
+  const startEditRelation = (edge: any) => {
+    setEditingEdgeId(edge.id)
+    setEditRelLabel(edge.label)
+    setEditRelStrength(Number(edge.strength))
+  }
+
+  const handleUpdateRelation = async () => {
+    if (!editingEdgeId) return
+    await updateEdgeMut.mutate({ id: editingEdgeId, label: editRelLabel, strength: editRelStrength })
+    setEditingEdgeId(null)
+    refetchEdges()
+  }
+
+  const handleDeleteRelation = async (edgeId: number) => {
+    await deleteEdgeMut.mutate(edgeId)
+    refetchEdges()
   }
 
   const startEdit = () => {
@@ -333,38 +384,137 @@ export default function WikiDetail() {
               最后更新：{new Date(wiki.updatedAt).toLocaleString()}
             </div>
 
-            {relatedWikis && relatedWikis.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-white/5">
-                <h3 className="text-sm font-medium text-neutral-300 mb-3 flex items-center gap-1.5">
+            {/* Relations */}
+            <div className="mt-6 pt-4 border-t border-white/5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-neutral-300 flex items-center gap-1.5">
                   <Link2 className="w-3.5 h-3.5" />
-                  相关知识条目
+                  关联知识条目
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {relatedWikis.map((related) => (
-                    <button
-                      key={related.id}
-                      onClick={() => {
-                        navigate(`/wiki/${related.id}`)
-                        refresh()
-                      }}
-                      className="text-left p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-purple-500/30 transition-all"
-                    >
-                      <p className="text-xs font-medium text-white truncate">{related.title}</p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        {related.category && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
-                            {related.category}
-                          </span>
-                        )}
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400">
-                          {related.relation.label}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <button
+                  onClick={() => setShowAddRelation(!showAddRelation)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/15 text-purple-300 text-[11px] hover:bg-purple-500/25 transition-all"
+                >
+                  <Plus className="w-3 h-3" />
+                  添加关联
+                </button>
               </div>
-            )}
+
+              {/* Add relation form */}
+              {showAddRelation && (
+                <div className="mb-3 p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
+                  <select
+                    value={relTargetId ?? ''}
+                    onChange={(e) => setRelTargetId(Number(e.target.value) || null)}
+                    className="w-full px-3 py-1.5 rounded-lg bg-[#0f0f0f] border border-white/5 text-xs text-white outline-none focus:border-purple-500/30"
+                  >
+                    <option value="">选择目标 Wiki...</option>
+                    {(allWikis ?? []).filter(w => w.id !== wikiId).map(w => (
+                      <option key={w.id} value={w.id}>{w.title}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={relLabel}
+                      onChange={(e) => setRelLabel(e.target.value)}
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-[#0f0f0f] border border-white/5 text-xs text-white outline-none focus:border-purple-500/30"
+                    >
+                      {relationLabels.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-neutral-500">强度</span>
+                      <input
+                        type="range"
+                        min="0" max="1" step="0.1"
+                        value={relStrength}
+                        onChange={(e) => setRelStrength(Number(e.target.value))}
+                        className="w-20"
+                      />
+                      <span className="text-[10px] text-neutral-400 w-6">{relStrength}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setShowAddRelation(false)} className="px-3 py-1 rounded-lg text-[11px] text-neutral-400 hover:text-white transition-all">取消</button>
+                    <button
+                      onClick={handleCreateRelation}
+                      disabled={!relTargetId || relTargetId === wikiId || createEdgeMut.isPending}
+                      className="flex items-center gap-1 px-3 py-1 rounded-lg bg-purple-500 text-white text-[11px] hover:bg-purple-600 disabled:opacity-40 transition-all"
+                    >
+                      {createEdgeMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                      创建
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Existing relations */}
+              {wikiEdges && wikiEdges.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {wikiEdges.map((edge: any) => {
+                    const connected = wikiMap.get(edge.connectedWikiId)
+                    return (
+                      <div key={edge.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-purple-500/30 transition-all group relative">
+                        {editingEdgeId === edge.id ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-neutral-400 truncate">{edge.connectedWikiTitle}</p>
+                            <select
+                              value={editRelLabel}
+                              onChange={(e) => setEditRelLabel(e.target.value)}
+                              className="w-full px-2 py-1 rounded bg-[#0f0f0f] border border-white/5 text-[11px] text-white outline-none"
+                            >
+                              {relationLabels.map(l => <option key={l} value={l}>{l}</option>)}
+                            </select>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-neutral-500">强度</span>
+                              <input
+                                type="range"
+                                min="0" max="1" step="0.1"
+                                value={editRelStrength}
+                                onChange={(e) => setEditRelStrength(Number(e.target.value))}
+                                className="flex-1"
+                              />
+                              <span className="text-[10px] text-neutral-400 w-6">{editRelStrength}</span>
+                            </div>
+                            <div className="flex gap-1.5 justify-end">
+                              <button onClick={handleUpdateRelation} className="p-1 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25"><Save className="w-3 h-3" /></button>
+                              <button onClick={() => setEditingEdgeId(null)} className="p-1 rounded-lg text-neutral-500 hover:text-white hover:bg-white/5"><X className="w-3 h-3" /></button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => navigate(`/wiki/${edge.connectedWikiId}`)}
+                              className="text-left w-full"
+                            >
+                              <p className="text-xs font-medium text-white truncate">{edge.connectedWikiTitle}</p>
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                {connected?.category && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                                    {connected.category}
+                                  </span>
+                                )}
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400">
+                                  {edge.label}
+                                </span>
+                                <span className="text-[10px] text-neutral-600 ml-auto">
+                                  {Number(edge.strength).toFixed(1)}
+                                </span>
+                              </div>
+                            </button>
+                            <div className="absolute top-2 right-2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => startEditRelation(edge)} className="p-1 rounded-lg text-neutral-600 hover:text-purple-400 hover:bg-purple-500/10"><Edit3 className="w-3 h-3" /></button>
+                              <button onClick={() => handleDeleteRelation(edge.id)} className="p-1 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10"><Trash2 className="w-3 h-3" /></button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-600">暂无关联，点击上方按钮添加</p>
+              )}
+            </div>
           </div>
         )}
       </div>

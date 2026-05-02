@@ -147,6 +147,30 @@ export function deleteLocalEdgesForWiki(wikiId: number) {
   setItem('pw_edges', edges)
 }
 
+export function addLocalEdge(data: Omit<LocalWikiEdge, 'id' | 'createdAt' | 'updatedAt'>): LocalWikiEdge {
+  const edges = getLocalEdges()
+  edgeIdCounter++
+  setItem('pw_edge_counter', edgeIdCounter)
+  const newEdge: LocalWikiEdge = { ...data, id: edgeIdCounter, createdAt: new Date(), updatedAt: new Date() }
+  edges.push(newEdge)
+  setItem('pw_edges', edges)
+  return newEdge
+}
+
+export function updateLocalEdge(id: number, updates: Partial<Pick<LocalWikiEdge, 'label' | 'strength'>>): void {
+  const edges = getLocalEdges()
+  const idx = edges.findIndex(e => e.id === id)
+  if (idx >= 0) {
+    edges[idx] = { ...edges[idx], ...updates, updatedAt: new Date() }
+    setItem('pw_edges', edges)
+  }
+}
+
+export function deleteLocalEdge(id: number): void {
+  const edges = getLocalEdges().filter(e => e.id !== id)
+  setItem('pw_edges', edges)
+}
+
 export function getLocalRelatedWikis(wikiId: number): Array<LocalWiki & { relation: { label: string; strength: number } }> {
   const edges = getLocalEdges().filter(e => e.sourceWikiId === wikiId || e.targetWikiId === wikiId)
   const wikis = getLocalWikis()
