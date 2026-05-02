@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useWiki, useUpdateWiki, useDeleteWiki } from '@/hooks/useUnifiedData'
+import { useWiki, useUpdateWiki, useDeleteWiki, useRelatedWikis } from '@/hooks/useUnifiedData'
 import {
   ArrowLeft,
   Loader2,
@@ -14,6 +14,7 @@ import {
   BookOpen,
   Tag,
   Clock,
+  Link2,
 } from 'lucide-react'
 
 export default function WikiDetail() {
@@ -25,6 +26,7 @@ export default function WikiDetail() {
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
 
   const { data: wiki, isLoading } = useWiki(wikiId)
+  const { data: relatedWikis } = useRelatedWikis(wikiId)
   const updateMut = useUpdateWiki()
   const deleteMut = useDeleteWiki()
 
@@ -187,6 +189,39 @@ export default function WikiDetail() {
               <Clock className="w-2.5 h-2.5" />
               最后更新：{new Date(wiki.updatedAt).toLocaleString()}
             </div>
+
+            {relatedWikis && relatedWikis.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-white/5">
+                <h3 className="text-sm font-medium text-neutral-300 mb-3 flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5" />
+                  相关知识条目
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {relatedWikis.map((related) => (
+                    <button
+                      key={related.id}
+                      onClick={() => {
+                        navigate(`/wiki/${related.id}`)
+                        refresh()
+                      }}
+                      className="text-left p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-purple-500/30 transition-all"
+                    >
+                      <p className="text-xs font-medium text-white truncate">{related.title}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {related.category && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                            {related.category}
+                          </span>
+                        )}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400">
+                          {related.relation.label}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -2,19 +2,18 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
 import CanvasBackground from '@/components/CanvasBackground'
-import { useStats, useAsk, useConvertToWiki, useConvertToNote } from '@/hooks/useUnifiedData'
+import { useStats, useAsk, useConvertToWiki } from '@/hooks/useUnifiedData'
 import {
   Send,
   Brain,
   BookOpen,
-  StickyNote,
+  Share2,
   MessageSquare,
   Loader2,
   Sparkles,
   ArrowRight,
   Zap,
   Database,
-  FileText,
 } from 'lucide-react'
 
 export default function Home() {
@@ -32,7 +31,6 @@ export default function Home() {
   const stats = useStats()
   const askMutation = useAsk()
   const convertToWikiMut = useConvertToWiki()
-  const convertToNoteMut = useConvertToNote()
 
   const handleAsk = async () => {
     if (!question.trim() || askMutation.isPending) return
@@ -62,7 +60,6 @@ export default function Home() {
   const sourceLabels: Record<string, { text: string; color: string; icon: typeof Brain }> = {
     ai: { text: 'AI 生成', color: 'text-blue-400', icon: Sparkles },
     wiki: { text: '来自 Wiki', color: 'text-purple-400', icon: BookOpen },
-    note: { text: '来自笔记', color: 'text-green-400', icon: FileText },
     hybrid: { text: '知识融合', color: 'text-amber-400', icon: Zap },
   }
 
@@ -84,7 +81,7 @@ export default function Home() {
             你的<span className="text-gradient">智能知识库</span>
           </h1>
           <p className="text-neutral-400 text-sm leading-relaxed">
-            提问任何问题，AI 会先在 Wiki 和笔记中搜索答案。如果没有找到，会自动为你生成回答，并可以一键整理到知识库。
+            提问任何问题，AI 会先在 Wiki 中搜索答案。如果没有找到，会自动为你生成回答，并可以一键整理到知识库。
           </p>
         </div>
 
@@ -123,7 +120,7 @@ export default function Home() {
               <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/5">
                 <div className="flex items-center gap-1.5 text-xs text-neutral-500">
                   <Database className="w-3 h-3" />
-                  <span>已索引 {stats?.wikis ?? 0} 个 Wiki、{stats?.notes ?? 0} 个笔记</span>
+                  <span>已索引 {stats?.wikis ?? 0} 个 Wiki</span>
                 </div>
               </div>
             </div>
@@ -138,7 +135,7 @@ export default function Home() {
             </div>
             <div>
               <p className="text-sm text-purple-300 font-medium">正在搜索你的知识库...</p>
-              <p className="text-xs text-neutral-500 mt-0.5">AI 正在 Wiki 和笔记中查找相关答案</p>
+              <p className="text-xs text-neutral-500 mt-0.5">AI 正在 Wiki 中查找相关答案</p>
             </div>
           </div>
         )}
@@ -183,14 +180,6 @@ export default function Home() {
                     <BookOpen className="w-3.5 h-3.5" />
                     {convertToWikiMut.isPending ? '处理中...' : '存入 Wiki'}
                   </button>
-                  <button
-                    onClick={() => currentAnswer && convertToNoteMut.mutate(currentAnswer.questionId)}
-                    disabled={convertToNoteMut.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-500/15 text-blue-300 text-xs font-medium hover:bg-blue-500/25 transition-all disabled:opacity-40"
-                  >
-                    <StickyNote className="w-3.5 h-3.5" />
-                    {convertToNoteMut.isPending ? '处理中...' : '存入笔记'}
-                  </button>
                 </div>
               )}
             </div>
@@ -214,17 +203,17 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => navigate('/notes')}
-            className="group glass-panel rounded-xl p-4 text-left hover:border-blue-500/30 transition-all"
+            onClick={() => navigate('/network')}
+            className="group glass-panel rounded-xl p-4 text-left hover:border-cyan-500/30 transition-all"
           >
             <div className="flex items-center justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
-                <StickyNote className="w-4 h-4 text-blue-400" />
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/15 flex items-center justify-center">
+                <Share2 className="w-4 h-4 text-cyan-400" />
               </div>
-              <ArrowRight className="w-3.5 h-3.5 text-neutral-600 group-hover:text-blue-400 transition-all group-hover:translate-x-0.5" />
+              <ArrowRight className="w-3.5 h-3.5 text-neutral-600 group-hover:text-cyan-400 transition-all group-hover:translate-x-0.5" />
             </div>
-            <p className="text-sm font-medium text-white">我的笔记</p>
-            <p className="text-xs text-neutral-500 mt-0.5">{stats?.notes ?? 0} 个笔记</p>
+            <p className="text-sm font-medium text-white">知识网络</p>
+            <p className="text-xs text-neutral-500 mt-0.5">可视化知识关联</p>
           </button>
 
           <button

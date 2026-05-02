@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { questions, wikis, notes } from "@db/schema";
+import { questions, wikis } from "@db/schema";
 import { eq, and, like, or, desc } from "drizzle-orm";
 import { env } from "./lib/env";
 
-// Search local knowledge (wikis and notes) for relevant content
+// Search local knowledge (wikis) for relevant content
 async function searchLocalKnowledge(userId: number, query: string) {
   const db = getDb();
-  
+
   // Search wikis
   const wikiResults = await db
     .select()
@@ -25,22 +25,7 @@ async function searchLocalKnowledge(userId: number, query: string) {
     )
     .limit(3);
 
-  // Search notes
-  const noteResults = await db
-    .select()
-    .from(notes)
-    .where(
-      and(
-        eq(notes.userId, userId),
-        or(
-          like(notes.title, `%${query}%`),
-          like(notes.content, `%${query}%`)
-        )
-      )
-    )
-    .limit(3);
-
-  return { wikis: wikiResults, notes: noteResults };
+  return { wikis: wikiResults };
 }
 
 async function callAI(messages: Array<{ role: string; content: string }>) {
@@ -89,35 +74,22 @@ export const aiRouter = createRouter({
       // Step 1: Search local knowledge
       const localResults = await searchLocalKnowledge(userId, question);
       const hasWikiResults = localResults.wikis.length > 0;
-      const hasNoteResults = localResults.notes.length > 0;
 
       // Step 2: Build context from local knowledge
       let context = "";
-      let source: "ai" | "wiki" | "note" | "hybrid" = "ai";
+      let source: "ai" | "wiki" = "ai";
       const sourceIds: number[] = [];
 
-      if (hasWikiResults || hasNoteResults) {
+      if (hasWikiResults) {
         context = "Based on your existing knowledge base:\n\n";
-        
-        if (hasWikiResults) {
-          context += "=== Wiki Entries ===\n";
-          for (const wiki of localResults.wikis) {
-            context += `Title: ${wiki.title}\nSummary: ${wiki.summary || wiki.content.slice(0, 500)}\n\n`;
-            sourceIds.push(wiki.id);
-          }
+
+        context += "=== Wiki Entries ===\n";
+        for (const wiki of localResults.wikis) {
+          context += `Title: ${wiki.title}\nSummary: ${wiki.summary || wiki.content.slice(0, 500)}\n\n`;
+          sourceIds.push(wiki.id);
         }
 
-        if (hasNoteResults) {
-          context += "=== Notes ===\n";
-          for (const note of localResults.notes) {
-            context += `Title: ${note.title}\nContent: ${note.content.slice(0, 500)}\n\n`;
-            sourceIds.push(note.id);
-          }
-        }
-
-        if (hasWikiResults && !hasNoteResults) source = "wiki";
-        else if (!hasWikiResults && hasNoteResults) source = "note";
-        else source = "hybrid";
+        source = "wiki";
       }
 
       // Step 3: Call AI API with context
@@ -125,9 +97,9 @@ export const aiRouter = createRouter({
         {
           role: "system",
           content: `You are PulseWiki, an intelligent knowledge assistant. Your role is to:
-1. Answer questions based on the user's existing knowledge (wiki entries and notes) when available
+1. Answer questions based on the user's existing knowledge (wiki entries) when available
 2. Provide clear, accurate, and helpful responses
-3. When referencing wiki or note content, mention the source title
+3. When referencing wiki content, mention the source title
 4. If the user's knowledge doesn't fully answer the question, supplement with general knowledge
 5. Always respond in the same language as the user's question
 ${context ? "\nThe following is the user's existing knowledge base that may be relevant:\n" + context : ""}`,
@@ -154,9 +126,8 @@ ${context ? "\nThe following is the user's existing knowledge base that may be r
         questionId: result.id,
         answer,
         source,
-        hasLocalKnowledge: hasWikiResults || hasNoteResults,
+        hasLocalKnowledge: hasWikiResults,
         wikiCount: localResults.wikis.length,
-        noteCount: localResults.notes.length,
       };
     }),
 
@@ -219,41 +190,6 @@ ${context ? "\nThe following is the user's existing knowledge base that may be r
         .where(eq(questions.id, question.id));
 
       return { wikiId: newWiki.id, title, summary };
-    }),
-
-  // Convert a Q&A to a note
-  convertToNote: publicQuery
-    .input(z.object({ questionId: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      const db = getDb();
-      
-      const qResult = await db
-        .select()
-        .from(questions)
-        .where(
-          and(
-            eq(questions.id, input.questionId),
-            eq(questions.userId, ctx.user.id)
-          )
-        )
-        .limit(1);
-
-      const question = qResult[0];
-      if (!question) {
-        throw new Error("Question not found");
-      }
-
-      const title = question.question.length > 80 
-        ? question.question.slice(0, 80) + "..." 
-        : question.question;
-
-      const [newNote] = await db.insert(notes).values({
-        userId: ctx.user.id,
-        title,
-        content: question.answer,
-      }).returning();
-
-      return { noteId: newNote.id, title };
     }),
 
   // Auto-organize: batch convert multiple Q&As to wikis

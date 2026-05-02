@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import Navbar from '@/components/Navbar'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useQuestionList, useDeleteQuestion, useConvertToWiki, useConvertToNote, useAutoOrganize } from '@/hooks/useUnifiedData'
+import { useQuestionList, useDeleteQuestion, useConvertToWiki, useAutoOrganize } from '@/hooks/useUnifiedData'
 import {
   MessageSquare,
   Search,
@@ -12,7 +12,6 @@ import {
   Clock,
   Sparkles,
   BookOpen,
-  StickyNote,
   Zap,
   ArrowRight,
   Wand2,
@@ -29,7 +28,6 @@ export default function Questions() {
   const { data: questions, isLoading } = useQuestionList(search || undefined)
   const deleteMut = useDeleteQuestion()
   const convertWikiMut = useConvertToWiki()
-  const convertNoteMut = useConvertToNote()
   const autoOrgMut = useAutoOrganize()
 
   const handleDelete = async (id: number) => {
@@ -42,11 +40,6 @@ export default function Questions() {
     refresh()
   }
 
-  const handleConvertNote = async (id: number) => {
-    await convertNoteMut.mutate(id)
-    refresh()
-  }
-
   const handleAutoOrganize = async () => {
     await autoOrgMut.mutate()
     refresh()
@@ -55,7 +48,6 @@ export default function Questions() {
   const sourceConfig: Record<string, { color: string; bg: string; icon: typeof Sparkles; label: string }> = {
     ai: { color: 'text-blue-400', bg: 'bg-blue-500/10', icon: Sparkles, label: 'AI' },
     wiki: { color: 'text-purple-400', bg: 'bg-purple-500/10', icon: BookOpen, label: 'Wiki' },
-    note: { color: 'text-green-400', bg: 'bg-green-500/10', icon: StickyNote, label: '笔记' },
     hybrid: { color: 'text-amber-400', bg: 'bg-amber-500/10', icon: Zap, label: '融合' },
   }
 
@@ -155,14 +147,6 @@ export default function Questions() {
                           >
                             <BookOpen className="w-3 h-3" />
                             存入 Wiki
-                          </button>
-                          <button
-                            onClick={() => handleConvertNote(q.id)}
-                            disabled={convertNoteMut.isPending}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 text-xs hover:bg-blue-500/25 transition-all disabled:opacity-40"
-                          >
-                            <StickyNote className="w-3 h-3" />
-                            存入笔记
                           </button>
                         </div>
                       )}

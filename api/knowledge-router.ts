@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { questions, wikis, notes } from "@db/schema";
+import { questions, wikis } from "@db/schema";
 import { eq, and, desc, like, or } from "drizzle-orm";
 
 export const knowledgeRouter = createRouter({
@@ -176,101 +176,6 @@ export const knowledgeRouter = createRouter({
     return result.map((r) => r.category).filter(Boolean) as string[];
   }),
 
-  // ===== Notes =====
-  listNotes: publicQuery
-    .input(z.object({ search: z.string().optional() }).optional())
-    .query(async ({ ctx, input }) => {
-      const db = getDb();
-      const conditions = [eq(notes.userId, ctx.user.id)];
-
-      if (input?.search) {
-        conditions.push(
-          or(
-            like(notes.title, `%${input.search}%`),
-            like(notes.content, `%${input.search}%`)
-          )!
-        );
-      }
-
-      return db
-        .select()
-        .from(notes)
-        .where(and(...conditions))
-        .orderBy(desc(notes.updatedAt));
-    }),
-
-  getNote: publicQuery
-    .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }) => {
-      const db = getDb();
-      const result = await db
-        .select()
-        .from(notes)
-        .where(
-          and(
-            eq(notes.id, input.id),
-            eq(notes.userId, ctx.user.id)
-          )
-        )
-        .limit(1);
-      return result[0] ?? null;
-    }),
-
-  createNote: publicQuery
-    .input(
-      z.object({
-        title: z.string().min(1).max(255),
-        content: z.string().min(1),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = getDb();
-      const [result] = await db.insert(notes).values({
-        userId: ctx.user.id,
-        title: input.title,
-        content: input.content,
-      }).returning();
-      return { id: result.id };
-    }),
-
-  updateNote: publicQuery
-    .input(
-      z.object({
-        id: z.number(),
-        title: z.string().min(1).max(255).optional(),
-        content: z.string().min(1).optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = getDb();
-      const { id, ...updates } = input;
-      await db
-        .update(notes)
-        .set(updates)
-        .where(
-          and(
-            eq(notes.id, id),
-            eq(notes.userId, ctx.user.id)
-          )
-        );
-      return { success: true };
-    }),
-
-  deleteNote: publicQuery
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      const db = getDb();
-      await db
-        .delete(notes)
-        .where(
-          and(
-            eq(notes.id, input.id),
-            eq(notes.userId, ctx.user.id)
-          )
-        );
-      return { success: true };
-    }),
-
   // ===== Stats =====
   getStats: publicQuery.query(async ({ ctx }) => {
     const db = getDb();
@@ -285,15 +190,9 @@ export const knowledgeRouter = createRouter({
       .from(wikis)
       .where(eq(wikis.userId, ctx.user.id));
     
-    const nCount = await db
-      .select()
-      .from(notes)
-      .where(eq(notes.userId, ctx.user.id));
-
     return {
       questions: qCount.length,
       wikis: wCount.length,
-      notes: nCount.length,
     };
   }),
 
@@ -318,20 +217,6 @@ export const knowledgeRouter = createRouter({
         )
         .limit(5);
 
-      const noteResults = await db
-        .select()
-        .from(notes)
-        .where(
-          and(
-            eq(notes.userId, ctx.user.id),
-            or(
-              like(notes.title, searchTerm),
-              like(notes.content, searchTerm)
-            )
-          )
-        )
-        .limit(5);
-
       const questionResults = await db
         .select()
         .from(questions)
@@ -348,7 +233,6 @@ export const knowledgeRouter = createRouter({
 
       return {
         wikis: wikiResults,
-        notes: noteResults,
         questions: questionResults,
       };
     }),

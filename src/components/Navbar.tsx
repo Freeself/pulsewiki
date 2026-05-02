@@ -3,7 +3,7 @@ import { useState } from 'react'
 import {
   Brain,
   BookOpen,
-  StickyNote,
+  Share2,
   MessageSquare,
   Menu,
   X
@@ -16,7 +16,7 @@ export default function Navbar() {
   const navItems = [
     { path: '/', label: '工作台', icon: Brain },
     { path: '/wiki', label: 'Wiki', icon: BookOpen },
-    { path: '/notes', label: '笔记', icon: StickyNote },
+    { path: '/network', label: '知识网络', icon: Share2 },
     { path: '/questions', label: '问答', icon: MessageSquare },
   ]
 
