@@ -127,32 +127,18 @@ export default function KnowledgeNetwork() {
   const hasEdges = edges.length > 0
   const relationEdgeCount = edges.length
 
-  // Search handler
+  // Search handler — updates data flags, styles are driven by initial functions
   const handleSearch = useCallback((g: Graph, query: string) => {
-    if (!query.trim()) {
-      // Clear search highlight
-      const allNodeIds = g.getNodeData().map((n: any) => n.id)
-      for (const nid of allNodeIds) {
-        g.updateNodeData([{ id: nid, style: { lineWidth: undefined, stroke: undefined } }])
-      }
-      g.draw()
-      return
-    }
-    const q = query.toLowerCase()
+    const q = query.trim().toLowerCase()
     let firstMatch: string | null = null
     const allNodeIds = g.getNodeData().map((n: any) => n.id)
     for (const nid of allNodeIds) {
       const nd = g.getNodeData(nid)
       const d = nd.data as any
       const title = (d?.title ?? '').toLowerCase()
-      const match = title.includes(q)
+      const match = q ? title.includes(q) : false
       if (match && !firstMatch) firstMatch = nid as string
-      g.updateNodeData([{
-        id: nid,
-        style: match
-          ? { lineWidth: 3, stroke: '#fbbf24' }
-          : { lineWidth: undefined, stroke: undefined },
-      }])
+      g.updateNodeData([{ id: nid, data: { ...d, _searchMatched: match } }])
     }
     g.draw()
     if (firstMatch) g.focusElement(firstMatch)
@@ -269,10 +255,30 @@ export default function KnowledgeNetwork() {
             return '#1a1a2e'
           },
           stroke: (d: any) => {
+            if (d.data?._searchMatched) return '#fbbf24'
             if (d.data?.type === 'tag') return tagColor
             return getCategoryColor(d.data?.category)
           },
-          lineWidth: (d: any) => d.data?.type === 'tag' ? 1 : 1.5,
+          lineWidth: (d: any) => {
+            if (d.data?._searchMatched) return 3
+            if (d.data?._hlTag && d.data?.type === 'tag' && d.data?.title === d.data?._hlTag) return 3
+            if (d.data?._hlTag && d.data?.type === 'wiki') {
+              const wikiId = d.data?.wikiId
+              if ((wikiTagMap.get(wikiId) ?? []).includes(d.data?._hlTag)) return 2.5
+            }
+            if (d.data?._hoverSelf) return 2.5
+            return d.data?.type === 'tag' ? 1 : 1.5
+          },
+          opacity: (d: any) => {
+            if (d.data?._searchMatched) return 1
+            if (d.data?._hlTag) {
+              if (d.data?.type === 'tag') return d.data?.title === d.data?._hlTag ? 1 : 0.15
+              const wikiId = d.data?.wikiId
+              return (wikiTagMap.get(wikiId) ?? []).includes(d.data?._hlTag) ? 1 : 0.15
+            }
+            if (d.data?._hoverDimmed) return 0.12
+            return 1
+          },
           radius: (d: any) => d.data?.type === 'tag' ? 14 : 8,
           labelText: (d: any) => {
             const title = d.data?.title ?? ''
@@ -298,7 +304,15 @@ export default function KnowledgeNetwork() {
             if (d.data?.type === 'inferred') return 1 + (d.data?.strength ?? 0.4) * 1.5
             return 1 + (d.data?.strength ?? 0.5) * 2
           },
-          opacity: (d: any) => d.data?.type === 'tag-link' ? 0.2 : 0.5,
+          opacity: (d: any) => {
+            if (d.data?._hoverConnected) return 0.8
+            if (d.data?._hoverDimmed) return 0.04
+            if (d.data?._hlTag) {
+              if (d.data?.type === 'tag-link') return d.data?._hlTagConnected ? 0.8 : 0.05
+              return 0.08
+            }
+            return d.data?.type === 'tag-link' ? 0.2 : 0.5
+          },
           lineDash: (d: any) => d.data?.type === 'tag-link' ? [4, 4] : d.data?.type === 'inferred' ? [6, 3] : undefined,
           endArrow: (d: any) => d.data?.type !== 'tag-link',
           labelText: (d: any) => {
@@ -395,55 +409,35 @@ export default function KnowledgeNetwork() {
       const nodeId = evt.target?.id ?? evt.node?.id
       if (!nodeId || highlightedTagRef.current) return
       if (typeof nodeId === 'string' && nodeId.startsWith('wiki-')) {
-        highlightWikiConnections(graph, nodeId, wikiTagMap)
+        highlightWikiConnections(graph, nodeId)
       }
     })
     graph.on('node:pointerout', () => {
       if (!highlightedTagRef.current) applyHighlight(graph, null, wikiTagMap)
     })
 
-    // Highlight helper
+    // Highlight helper — updates data flags, styles are driven by initial functions
     const applyHighlight = (g: Graph, tag: string | null, wtm: Map<number, string[]>) => {
       highlightedTagRef.current = tag
+      const tid = tag ? `tag-${tag}` : null
       const allNodeIds = g.getNodeData().map((n: any) => n.id)
       for (const nid of allNodeIds) {
         const nd = g.getNodeData(nid)
         const d = nd.data as any
-        let opacity = 1
-        let lw = d?.type === 'tag' ? 1 : 1.5
-        if (tag) {
-          if (d?.type === 'tag') {
-            opacity = d.title === tag ? 1 : 0.15
-            lw = d.title === tag ? 3 : 1
-          } else {
-            const wikiId = d?.wikiId ?? Number(String(nid).replace('wiki-', ''))
-            const match = (wtm.get(wikiId) ?? []).includes(tag)
-            opacity = match ? 1 : 0.15
-            lw = match ? 2.5 : 1
-          }
-        }
-        g.updateNodeData([{ id: nid, style: { opacity, lineWidth: lw } }])
+        g.updateNodeData([{ id: nid, data: { ...d, _hlTag: tag, _hoverDimmed: false, _hoverSelf: false } }])
       }
       const allEdgeIds = g.getEdgeData().map((e: any) => e.id)
       for (const eid of allEdgeIds) {
         const ed = g.getEdgeData(eid)
         const d = ed.data as any
-        let opacity = d?.type === 'tag-link' ? 0.2 : 0.5
-        if (tag) {
-          if (d?.type === 'tag-link') {
-            const tid = `tag-${tag}`
-            opacity = (String(ed.target) === tid || String(ed.source) === tid) ? 0.8 : 0.05
-          } else {
-            opacity = 0.08
-          }
-        }
-        g.updateEdgeData([{ id: eid, style: { opacity } }])
+        const tagConnected = tid ? (String(ed.target) === tid || String(ed.source) === tid) : false
+        g.updateEdgeData([{ id: eid, data: { ...d, _hlTag: tag, _hlTagConnected: tagConnected, _hoverDimmed: false, _hoverConnected: false } }])
       }
       g.draw()
     }
 
-    // Highlight wiki connections
-    function highlightWikiConnections(g: Graph, nodeId: string, wtm: Map<number, string[]>) {
+    // Highlight wiki connections — updates data flags
+    function highlightWikiConnections(g: Graph, nodeId: string) {
       const connectedNodes = new Set<string>([nodeId])
       const allEdgeIds = g.getEdgeData().map((e: any) => e.id)
       for (const eid of allEdgeIds) {
@@ -460,14 +454,15 @@ export default function KnowledgeNetwork() {
         const nd = g.getNodeData(nid)
         const d = nd.data as any
         const connected = connectedNodes.has(nid as string)
-        g.updateNodeData([{ id: nid, style: { opacity: connected ? 1 : 0.12, lineWidth: nid === nodeId ? 2.5 : d?.type === 'tag' ? 1 : 1.5 } }])
+        g.updateNodeData([{ id: nid, data: { ...d, _hoverSelf: nid === nodeId, _hoverDimmed: !connected } }])
       }
       for (const eid of allEdgeIds) {
         const ed = g.getEdgeData(eid)
+        const d = ed.data as any
         const src = String(ed.source)
         const tgt = String(ed.target)
         const connected = src === nodeId || tgt === nodeId
-        g.updateEdgeData([{ id: eid, style: { opacity: connected ? 0.8 : 0.04 } }])
+        g.updateEdgeData([{ id: eid, data: { ...d, _hoverConnected: connected, _hoverDimmed: !connected } }])
       }
       g.draw()
     }
