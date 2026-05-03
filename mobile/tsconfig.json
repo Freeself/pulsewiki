@@ -1,0 +1,14 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@db/*": ["../db/*"],
+      "@api/*": ["../api/*"]
+    },
+    "skipLibCheck": true
+  },
+  "include": ["src", "app", "../db"]
+}
