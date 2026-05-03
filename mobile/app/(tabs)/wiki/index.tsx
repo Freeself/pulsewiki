@@ -127,7 +127,6 @@ export default function WikiListScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                     <Text style={{ color: '#525252', fontSize: 10 }}>{new Date(item.updatedAt).toLocaleDateString()}</Text>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <Pressable onPress={() => router.push(`/wiki/${item.id}`)}><MaterialCommunityIcons name="pencil-outline" size={18} color="#8b5cf6" /></Pressable>
                       <Pressable onPress={() => embeddingMut.mutate(item.id)} disabled={embeddingMut.isPending}>
                         {embeddingMut.isPending
                           ? <ActivityIndicator size={18} color="#06b6d4" />

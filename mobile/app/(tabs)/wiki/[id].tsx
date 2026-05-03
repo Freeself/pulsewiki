@@ -5,7 +5,7 @@ const KAScrollView = KeyboardAwareScrollView as any;
 import { Text, Card, Chip, ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useWiki, useUpdateWikiTags, useRegenerateTags, useWikiList, useWikiEdges, useCreateEdge, useDeleteEdge } from '../../../src/hooks/useUnifiedData';
+import { useWiki, useUpdateWiki, useUpdateWikiTags, useRegenerateTags, useWikiList, useWikiEdges, useCreateEdge, useDeleteEdge } from '../../../src/hooks/useUnifiedData';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 
@@ -14,6 +14,7 @@ export default function WikiDetailScreen() {
   const wikiId = Number(id);
   const { data: wiki, isLoading } = useWiki(wikiId);
 
+  const updateWikiMut = useUpdateWiki();
   const updateTagsMut = useUpdateWikiTags();
   const regenerateTagsMut = useRegenerateTags();
   const { data: allWikis } = useWikiList();
@@ -28,6 +29,25 @@ export default function WikiDetailScreen() {
   const [showAddRelation, setShowAddRelation] = useState(false);
   const [relTargetId, setRelTargetId] = useState<number | null>(null);
   const [relLabel, setRelLabel] = useState('相关');
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editSummary, setEditSummary] = useState('');
+  const [editContent, setEditContent] = useState('');
+
+  const startEdit = () => {
+    if (!wiki) return;
+    setEditTitle(wiki.title);
+    setEditCategory(wiki.category ?? '');
+    setEditSummary(wiki.summary ?? '');
+    setEditContent(wiki.content);
+    setIsEditing(true);
+  };
+  const saveEdit = async () => {
+    await updateWikiMut.mutateAsync({ id: wikiId, title: editTitle.trim(), category: editCategory.trim() || undefined, summary: editSummary.trim() || undefined, content: editContent.trim() });
+    setIsEditing(false);
+  };
 
   const relationLabels = ['相关', '依赖', '引用', '对比', '包含'];
   const parseTags = (tagsStr?: string | null): string[] => {
@@ -73,10 +93,34 @@ export default function WikiDetailScreen() {
         <Pressable onPress={() => router.push('/wiki')}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#a78bfa" />
         </Pressable>
-        <Text variant="titleMedium" style={{ color: '#fff', fontWeight: 'bold', marginLeft: 12, flex: 1 }} numberOfLines={1}>{wiki.title}</Text>
+        <Text variant="titleMedium" style={{ color: '#fff', fontWeight: 'bold', marginLeft: 12, flex: 1 }} numberOfLines={1}>{isEditing ? '编辑 Wiki' : wiki.title}</Text>
+        {!isEditing && (
+          <Pressable onPress={startEdit} style={{ marginLeft: 8 }}>
+            <MaterialCommunityIcons name="pencil-outline" size={20} color="#8b5cf6" />
+          </Pressable>
+        )}
       </View>
 
       <KAScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} extraScrollHeight={80} enableOnAndroid={true}>
+        {isEditing ? (
+          <>
+            <Text style={{ color: '#a3a3a3', fontSize: 12, marginBottom: 4 }}>标题</Text>
+            <TextInput value={editTitle} onChangeText={setEditTitle} placeholder="标题" placeholderTextColor="#525252" style={{ backgroundColor: '#0f0f0f', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 14, marginBottom: 8 }} />
+            <Text style={{ color: '#a3a3a3', fontSize: 12, marginBottom: 4 }}>分类</Text>
+            <TextInput value={editCategory} onChangeText={setEditCategory} placeholder="分类（可选）" placeholderTextColor="#525252" style={{ backgroundColor: '#0f0f0f', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 14, marginBottom: 8 }} />
+            <Text style={{ color: '#a3a3a3', fontSize: 12, marginBottom: 4 }}>摘要</Text>
+            <TextInput value={editSummary} onChangeText={setEditSummary} placeholder="摘要（可选）" placeholderTextColor="#525252" multiline numberOfLines={2} style={{ backgroundColor: '#0f0f0f', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 14, marginBottom: 8 }} />
+            <Text style={{ color: '#a3a3a3', fontSize: 12, marginBottom: 4 }}>内容</Text>
+            <TextInput value={editContent} onChangeText={setEditContent} placeholder="内容" placeholderTextColor="#525252" multiline textAlignVertical="top" style={{ backgroundColor: '#0f0f0f', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 14, minHeight: 300 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <Pressable onPress={() => setIsEditing(false)} style={{ paddingHorizontal: 16, paddingVertical: 8 }}><Text style={{ color: '#525252' }}>取消</Text></Pressable>
+              <Pressable onPress={saveEdit} disabled={updateWikiMut.isPending || !editTitle.trim() || !editContent.trim()} style={{ backgroundColor: '#8b5cf6', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, opacity: updateWikiMut.isPending || !editTitle.trim() || !editContent.trim() ? 0.4 : 1 }}>
+                <Text style={{ color: '#fff', fontSize: 14 }}>{updateWikiMut.isPending ? '保存中...' : '保存'}</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+        <>
         {wiki.category && <Chip icon="tag" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', alignSelf: 'flex-start', marginBottom: 12 }}>{wiki.category}</Chip>}
 
         {/* Tags */}
@@ -183,6 +227,8 @@ export default function WikiDetailScreen() {
             !showAddRelation && <Text style={{ color: '#525252', fontSize: 12 }}>暂无关联</Text>
           )}
         </View>
+        </>
+        )}
       </KAScrollView>
     </SafeAreaView>
   );
