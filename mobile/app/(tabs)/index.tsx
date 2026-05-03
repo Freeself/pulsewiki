@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
 import { View, FlatList, KeyboardAvoidingView, Platform, TextInput, Pressable, ScrollView } from 'react-native';
-import { Text, Card, ActivityIndicator, Chip } from 'react-native-paper';
+import { Text, Card, ActivityIndicator, Chip, Snackbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStats, useAskQuestion, useConvertToWiki } from '../../src/hooks/useUnifiedData';
 import { sourceConfig } from '../../src/lib/constants';
 import Markdown from 'react-native-markdown-display';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 
 interface ChatMessage {
   id: string;
@@ -18,6 +19,7 @@ interface ChatMessage {
 export default function HomeScreen() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [copied, setCopied] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   const statsQuery = useStats();
@@ -89,13 +91,11 @@ export default function HomeScreen() {
                         {sourceConfig[item.source as keyof typeof sourceConfig]?.label || item.source}
                       </Chip>
                     )}
-                    <View style={{ maxHeight: 400 }}>
-                      <ScrollView nestedScrollEnabled={true}>
-                      <Markdown style={{ body: { color: '#e5e5e5', fontSize: 13 }, heading1: { color: '#fff' }, heading2: { color: '#fff' }, code_inline: { backgroundColor: 'rgba(255, 255, 255, 0.06)', color: '#a78bfa' }, code_block: { backgroundColor: '#0f0f0f', color: '#e5e5e5' }, bullet_list: { color: '#e5e5e5' }, ordered_list: { color: '#e5e5e5' } }}>
-                        {item.content}
-                      </Markdown>
-                      </ScrollView>
-                    </View>
+                    <ScrollView nestedScrollEnabled={true} style={{ maxHeight: 400 }}>
+                    <Markdown style={{ body: { color: '#e5e5e5', fontSize: 13 }, heading1: { color: '#fff' }, heading2: { color: '#fff' }, code_inline: { backgroundColor: 'rgba(255, 255, 255, 0.06)', color: '#a78bfa' }, code_block: { backgroundColor: '#0f0f0f', color: '#e5e5e5' }, bullet_list: { color: '#e5e5e5' }, ordered_list: { color: '#e5e5e5' } }}>
+                      {item.content}
+                    </Markdown>
+                    </ScrollView>
                     {item.questionId && item.source !== 'converted' && (
                       <Pressable onPress={() => handleConvert(item.questionId!)} disabled={convertMut.isPending} style={{ marginTop: 8, alignSelf: 'flex-start', opacity: convertMut.isPending ? 0.5 : 1 }}>
                         {convertMut.isPending
@@ -112,6 +112,9 @@ export default function HomeScreen() {
                 )}
               </Card.Content>
             </Card>
+            <Pressable onPress={async () => { await Clipboard.setStringAsync(item.content); setCopied(true); }} style={{ marginTop: 4, alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start', padding: 4 }}>
+              <MaterialCommunityIcons name="content-copy" size={16} color="#525252" />
+            </Pressable>
           </View>
         )}
       />
@@ -128,6 +131,7 @@ export default function HomeScreen() {
           )}
         </View>
       </View>
+      <Snackbar visible={copied} onDismiss={() => setCopied(false)} duration={1000} style={{ backgroundColor: '#333', marginBottom: 60 }}><Text style={{ color: '#fff' }}>已复制</Text></Snackbar>
     </SafeAreaView>
     </KeyboardAvoidingView>
   );

@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { View, FlatList, TextInput, Pressable } from 'react-native';
-import { Text, Card, Chip, ActivityIndicator } from 'react-native-paper';
+import { View, FlatList, TextInput, Pressable, Alert } from 'react-native';
+import { Text, Card, Chip, ActivityIndicator, Snackbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuestionList, useDeleteQuestion, useConvertToWiki } from '../../src/hooks/useUnifiedData';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { sourceConfig } from '../../src/lib/constants';
 import Markdown from 'react-native-markdown-display';
 
 export default function QuestionsScreen() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data: questions, isLoading } = useQuestionList(search || undefined);
   const deleteMut = useDeleteQuestion();
@@ -51,6 +53,7 @@ export default function QuestionsScreen() {
                         <Text style={{ color: '#525252', fontSize: 10, marginTop: 4 }}>{new Date(item.createdAt).toLocaleString()}</Text>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 4 }}>
+                        <Pressable onPress={async () => { await Clipboard.setStringAsync(item.question); setCopied(true); }}><MaterialCommunityIcons name="content-copy" size={18} color="#525252" /></Pressable>
                         <Pressable onPress={() => deleteMut.mutate(item.id)}><MaterialCommunityIcons name="delete-outline" size={18} color="#525252" /></Pressable>
                         <MaterialCommunityIcons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#525252" />
                       </View>
@@ -58,6 +61,9 @@ export default function QuestionsScreen() {
                     {isExpanded && (
                       <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.06)' }}>
                         <View style={{ maxHeight: 400 }}>
+                          <Pressable onPress={async () => { await Clipboard.setStringAsync(item.answer); setCopied(true); }} style={{ position: 'absolute', top: -8, right: 0, zIndex: 1, padding: 4 }}>
+                            <MaterialCommunityIcons name="content-copy" size={14} color="#525252" />
+                          </Pressable>
                           <Markdown style={{ body: { color: '#e5e5e5', fontSize: 13 }, code_inline: { backgroundColor: 'rgba(255, 255, 255, 0.06)', color: '#a78bfa' }, code_block: { backgroundColor: '#0f0f0f', color: '#e5e5e5' } }}>{item.answer}</Markdown>
                         </View>
                         {item.isConvertedToWiki === 'no' && (
@@ -76,6 +82,7 @@ export default function QuestionsScreen() {
           }}
         />
       )}
+      <Snackbar visible={copied} onDismiss={() => setCopied(false)} duration={1000} style={{ backgroundColor: '#333', marginBottom: 60 }}><Text style={{ color: '#fff' }}>已复制</Text></Snackbar>
     </SafeAreaView>
   );
 }
