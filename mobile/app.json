@@ -24,7 +24,8 @@
       },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayout": "resize",
-      "package": "com.anonymous.pulsewikimobile"
+      "package": "com.anonymous.pulsewikimobile",
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",

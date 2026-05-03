@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { View, FlatList, KeyboardAvoidingView, Platform, TextInput, Pressable } from 'react-native';
+import { View, FlatList, KeyboardAvoidingView, Platform, TextInput, Pressable, ScrollView } from 'react-native';
 import { Text, Card, ActivityIndicator, Chip } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStats, useAskQuestion, useConvertToWiki } from '../../src/hooks/useUnifiedData';
@@ -89,10 +89,12 @@ export default function HomeScreen() {
                         {sourceConfig[item.source as keyof typeof sourceConfig]?.label || item.source}
                       </Chip>
                     )}
-                    <View style={{ maxHeight: 400, overflow: 'hidden' }}>
+                    <View style={{ maxHeight: 400 }}>
+                      <ScrollView nestedScrollEnabled={true}>
                       <Markdown style={{ body: { color: '#e5e5e5', fontSize: 13 }, heading1: { color: '#fff' }, heading2: { color: '#fff' }, code_inline: { backgroundColor: 'rgba(255, 255, 255, 0.06)', color: '#a78bfa' }, code_block: { backgroundColor: '#0f0f0f', color: '#e5e5e5' }, bullet_list: { color: '#e5e5e5' }, ordered_list: { color: '#e5e5e5' } }}>
                         {item.content}
                       </Markdown>
+                      </ScrollView>
                     </View>
                     {item.questionId && item.source !== 'converted' && (
                       <Pressable onPress={() => handleConvert(item.questionId!)} disabled={convertMut.isPending} style={{ marginTop: 8, alignSelf: 'flex-start', opacity: convertMut.isPending ? 0.5 : 1 }}>
