@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { View, ScrollView, TextInput, Pressable, Alert } from 'react-native';
-import { Text, Card, Chip, Button, ActivityIndicator } from 'react-native-paper';
+import { Text, Card, Chip, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { trpc } from '../../src/providers/trpc';
+import { useConfigList, useCreateConfig, useUpdateConfig, useDeleteConfig, useActivateConfig, useDeactivateAllConfig } from '../../src/hooks/useUnifiedData';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { AiConfig } from '../../../db/schema';
+import type { AiConfig } from '@db/schema';
 
 type ConfigForm = {
   name: string; aiBaseUrl: string; aiApiKey: string; aiModel: string;
@@ -32,16 +31,15 @@ function toForm(c: AiConfig): ConfigForm {
 const inputStyle = { backgroundColor: '#0f0f0f', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, marginBottom: 8 };
 
 export default function SettingsScreen() {
-  const queryClient = useQueryClient();
-  const configQuery = useQuery({ queryKey: ['configs'], queryFn: () => trpc.config.list.query() });
-  const configs = (configQuery.data as AiConfig[] | undefined) ?? [];
+  const configQuery = useConfigList();
+  const configs = configQuery.data ?? [];
   const activeConfig = configs.find(c => c.isActive);
 
-  const createMut = useMutation({ mutationFn: (input: any) => trpc.config.create.mutate(input), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['configs'] }) });
-  const updateMut = useMutation({ mutationFn: (input: any) => trpc.config.update.mutate(input), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['configs'] }) });
-  const deleteMut = useMutation({ mutationFn: (id: number) => trpc.config.delete.mutate({ id }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['configs'] }) });
-  const activateMut = useMutation({ mutationFn: (id: number) => trpc.config.activate.mutate({ id }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['configs'] }) });
-  const deactivateAllMut = useMutation({ mutationFn: () => trpc.config.deactivateAll.mutate(), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['configs'] }) });
+  const createMut = useCreateConfig();
+  const updateMut = useUpdateConfig();
+  const deleteMut = useDeleteConfig();
+  const activateMut = useActivateConfig();
+  const deactivateAllMut = useDeactivateAllConfig();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -64,20 +62,21 @@ export default function SettingsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
         <Text variant="titleLarge" style={{ color: '#fff', fontWeight: 'bold' }}>设置</Text>
-        <Text style={{ color: '#525252', fontSize: 12, marginTop: 2 }}>AI 配置管理</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+        {/* Active config */}
         <Card style={{ backgroundColor: '#171717', marginTop: 12, marginBottom: 12, borderRadius: 12 }}>
           <Card.Content style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <MaterialCommunityIcons name="power" size={16} color={activeConfig ? '#10b981' : '#525252'} />
-              <Text style={{ color: '#a3a3a3', fontSize: 13 }}>当前：{activeConfig ? activeConfig.name : '使用环境变量'}</Text>
+              <Text style={{ color: '#a3a3a3', fontSize: 13 }}>当前：{activeConfig ? activeConfig.name : '未配置'}</Text>
             </View>
             {activeConfig && <Pressable onPress={() => deactivateAllMut.mutate()}><Text style={{ color: '#f59e0b', fontSize: 12 }}>停用</Text></Pressable>}
           </Card.Content>
         </Card>
 
+        {/* Config list */}
         {configs.map(c => (
           <Card key={c.id} style={{ backgroundColor: '#171717', marginBottom: 8, borderRadius: 12 }}>
             <Card.Content>
@@ -85,7 +84,7 @@ export default function SettingsScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ color: '#fff', fontSize: 14, fontWeight: '500' }}>{c.name}</Text>
-                    {c.isActive && <Chip textStyle={{ fontSize: 9, color: '#10b981' }} style={{ backgroundColor: '#10b98110' }}>启用中</Chip>}
+                    {c.isActive && <Chip textStyle={{ fontSize: 9, color: '#10b981' }} style={{ backgroundColor: 'rgba(16, 185, 129, 0.06)' }}>启用中</Chip>}
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
                     {c.aiModel && <Text style={{ color: '#525252', fontSize: 11 }}>LLM: {c.aiModel}</Text>}
@@ -102,7 +101,7 @@ export default function SettingsScreen() {
           </Card>
         ))}
 
-        <Button mode="outlined" onPress={startCreate} icon="plus" style={{ marginTop: 8, borderColor: '#06b6d430' }} textColor="#06b6d4">添加配置</Button>
+        <Button mode="outlined" onPress={startCreate} icon="plus" style={{ marginTop: 8, borderColor: 'rgba(6, 182, 212, 0.19)' }} textColor="#06b6d4">添加配置</Button>
 
         {showForm && (
           <Card style={{ backgroundColor: '#171717', marginTop: 16, borderRadius: 12 }}>
@@ -134,7 +133,7 @@ export default function SettingsScreen() {
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
                 <Pressable onPress={() => setShowForm(false)} style={{ paddingHorizontal: 16, paddingVertical: 8 }}><Text style={{ color: '#525252' }}>取消</Text></Pressable>
-                <Pressable onPress={handleSave} disabled={isPending || !form.name.trim()} style={{ backgroundColor: '#06b6d420', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, opacity: isPending || !form.name.trim() ? 0.4 : 1 }}>
+                <Pressable onPress={handleSave} disabled={isPending || !form.name.trim()} style={{ backgroundColor: 'rgba(6, 182, 212, 0.13)', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, opacity: isPending || !form.name.trim() ? 0.4 : 1 }}>
                   <Text style={{ color: '#06b6d4', fontSize: 14 }}>{isPending ? '保存中...' : '保存'}</Text>
                 </Pressable>
               </View>

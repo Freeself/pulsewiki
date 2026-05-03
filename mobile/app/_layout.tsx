@@ -1,10 +1,16 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { PaperProvider } from 'react-native-paper';
 import theme from '../src/lib/theme';
-import { QueryClientProvider, queryClient } from '../src/providers/trpc';
+import { QueryClientProvider, queryClient } from '../src/providers/query';
+import { initDb } from '../src/db/connection';
 import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
+  useEffect(() => {
+    initDb();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <PaperProvider theme={theme}>

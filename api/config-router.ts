@@ -50,7 +50,7 @@ export const configRouter = createRouter({
       embeddingApiFormat: z.enum(["openai", "dashscope"]).optional(),
       embeddingThreshold: z.string().optional(),
     }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = getDb();
       const { id, ...updates } = input;
       await db
@@ -63,7 +63,7 @@ export const configRouter = createRouter({
 
   delete: publicQuery
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = getDb();
       await db
         .delete(aiConfigs)

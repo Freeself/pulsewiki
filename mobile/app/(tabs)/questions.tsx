@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { View, FlatList, TextInput, Pressable } from 'react-native';
 import { Text, Card, Chip, ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { trpc } from '../../src/providers/trpc';
+import { useQuestionList, useDeleteQuestion, useConvertToWiki } from '../../src/hooks/useUnifiedData';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { sourceConfig } from '../../src/lib/constants';
 import Markdown from 'react-native-markdown-display';
@@ -11,24 +10,10 @@ import Markdown from 'react-native-markdown-display';
 export default function QuestionsScreen() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const queryClient = useQueryClient();
 
-  const questionsQuery = useQuery({
-    queryKey: ['questions', search],
-    queryFn: () => trpc.knowledge.listQuestions.query({ search: search || undefined }),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => trpc.knowledge.deleteQuestion.mutate({ id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['questions'] }),
-  });
-
-  const convertMut = useMutation({
-    mutationFn: (id: number) => trpc.ai.convertToWiki.mutate({ questionId: id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['questions'] }),
-  });
-
-  const questions = (questionsQuery.data as any[] | undefined) ?? [];
+  const { data: questions, isLoading } = useQuestionList(search || undefined);
+  const deleteMut = useDeleteQuestion();
+  const convertMut = useConvertToWiki();
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
@@ -44,7 +29,7 @@ export default function QuestionsScreen() {
         </View>
       </View>
 
-      {questionsQuery.isLoading ? (
+      {isLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator animating color="#f59e0b" /></View>
       ) : (
         <FlatList data={questions} keyExtractor={item => String(item.id)} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
@@ -59,8 +44,8 @@ export default function QuestionsScreen() {
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <Chip textStyle={{ fontSize: 10, color: cfg.color }} style={{ backgroundColor: `${cfg.color}15` }}>{cfg.label}</Chip>
-                          {item.isConvertedToWiki === 'yes' && <Chip textStyle={{ fontSize: 10, color: '#10b981' }} style={{ backgroundColor: '#10b98110' }}>已整理</Chip>}
+                          <Chip textStyle={{ fontSize: 10, color: cfg.color }} style={{ backgroundColor: cfg.bgColor }}>{cfg.label}</Chip>
+                          {item.isConvertedToWiki === 'yes' && <Chip textStyle={{ fontSize: 10, color: '#10b981' }} style={{ backgroundColor: 'rgba(16, 185, 129, 0.06)' }}>已整理</Chip>}
                         </View>
                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>{item.question}</Text>
                         <Text style={{ color: '#525252', fontSize: 10, marginTop: 4 }}>{new Date(item.createdAt).toLocaleString()}</Text>
@@ -71,13 +56,15 @@ export default function QuestionsScreen() {
                       </View>
                     </View>
                     {isExpanded && (
-                      <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#ffffff10' }}>
+                      <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.06)' }}>
                         <View style={{ maxHeight: 400 }}>
-                          <Markdown style={{ body: { color: '#e5e5e5', fontSize: 13 }, code_inline: { backgroundColor: '#ffffff10', color: '#a78bfa' }, code_block: { backgroundColor: '#0f0f0f', color: '#e5e5e5' } }}>{item.answer}</Markdown>
+                          <Markdown style={{ body: { color: '#e5e5e5', fontSize: 13 }, code_inline: { backgroundColor: 'rgba(255, 255, 255, 0.06)', color: '#a78bfa' }, code_block: { backgroundColor: '#0f0f0f', color: '#e5e5e5' } }}>{item.answer}</Markdown>
                         </View>
                         {item.isConvertedToWiki === 'no' && (
-                          <Pressable onPress={() => convertMut.mutate(item.id)} style={{ marginTop: 12 }}>
-                            <Chip icon="book-plus" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: '#8b5cf615', alignSelf: 'flex-start' }}>存入 Wiki</Chip>
+                          <Pressable onPress={() => convertMut.mutate(item.id)} disabled={convertMut.isPending} style={{ marginTop: 12, opacity: convertMut.isPending ? 0.5 : 1 }}>
+                            {convertMut.isPending
+                              ? <ActivityIndicator animating size={14} color="#8b5cf6" />
+                              : <Chip icon="book-plus" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', alignSelf: 'flex-start' }}>存入 Wiki</Chip>}
                           </Pressable>
                         )}
                       </View>

@@ -17,7 +17,7 @@ export const categoryColors: Record<string, string> = {
 };
 
 export const sourceConfig = {
-  ai: { color: '#3b82f6', label: 'AI' },
-  wiki: { color: '#8b5cf6', label: 'Wiki' },
-  hybrid: { color: '#f59e0b', label: '融合' },
+  ai: { color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.08)', label: 'AI' },
+  wiki: { color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.08)', label: 'Wiki' },
+  hybrid: { color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.08)', label: '融合' },
 };

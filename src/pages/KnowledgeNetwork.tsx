@@ -367,7 +367,6 @@ export default function KnowledgeNetwork() {
     const onContextMenu = (e: MouseEvent) => {
       e.preventDefault()
       // Find which node is under the cursor using graph API
-      const nodeItems = graph.getNodeData()
       // Simple: show context menu at cursor, items depend on what was last clicked
       // We'll use the existing click state
       const x = e.clientX
@@ -415,11 +414,11 @@ export default function KnowledgeNetwork() {
       }
     })
     graph.on('node:pointerout', () => {
-      if (!highlightedTagRef.current) applyHighlight(graph, null, wikiTagMap)
+      if (!highlightedTagRef.current) applyHighlight(graph, null)
     })
 
     // Highlight helper — updates data flags, styles are driven by initial functions
-    const applyHighlight = (g: Graph, tag: string | null, wtm: Map<number, string[]>) => {
+    const applyHighlight = (g: Graph, tag: string | null) => {
       highlightedTagRef.current = tag
       const tid = tag ? `tag-${tag}` : null
       const allNodeIds = g.getNodeData().map((n: any) => n.id)
@@ -476,9 +475,9 @@ export default function KnowledgeNetwork() {
       if (typeof nodeId === 'string' && nodeId.startsWith('tag-')) {
         const tag = nodeId.replace('tag-', '')
         if (highlightedTagRef.current === tag) {
-          applyHighlight(graph, null, wikiTagMap)
+          applyHighlight(graph, null)
         } else {
-          applyHighlight(graph, tag, wikiTagMap)
+          applyHighlight(graph, tag)
         }
       } else if (typeof nodeId === 'string' && nodeId.startsWith('wiki-')) {
         const wikiId = Number(nodeId.replace('wiki-', ''))
@@ -491,7 +490,7 @@ export default function KnowledgeNetwork() {
 
     graph.on('canvas:click', () => {
       if (highlightedTagRef.current) {
-        applyHighlight(graph, null, wikiTagMap)
+        applyHighlight(graph, null)
       }
       setSidePanel(null)
     })

@@ -17,7 +17,6 @@ import {
   Link2,
   Plus,
   Sparkles,
-  ChevronDown,
 } from 'lucide-react'
 
 export default function WikiDetail() {

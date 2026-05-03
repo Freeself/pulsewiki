@@ -245,7 +245,7 @@ export function useDeleteQuestion() {
 export function useStats() {
   const backendOk = useBackendAvailable()
   const trpcQuery = trpc.knowledge.getStats.useQuery(undefined, { enabled: backendOk, retry: false })
-  const { version } = useLocalDataRefresh()
+  useLocalDataRefresh()
 
   if (backendOk && trpcQuery.data) return trpcQuery.data
   return getLocalStats()
