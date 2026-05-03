@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert } from 'react-native';
+import { View, Pressable, TextInput, Alert } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+const KAScrollView = KeyboardAwareScrollView as any;
 import { Text, Card, Chip, ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -74,7 +76,7 @@ export default function WikiDetailScreen() {
         <Text variant="titleMedium" style={{ color: '#fff', fontWeight: 'bold', marginLeft: 12, flex: 1 }} numberOfLines={1}>{wiki.title}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+      <KAScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} extraScrollHeight={80} enableOnAndroid={true}>
         {wiki.category && <Chip icon="tag" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', alignSelf: 'flex-start', marginBottom: 12 }}>{wiki.category}</Chip>}
 
         {/* Tags */}
@@ -181,7 +183,7 @@ export default function WikiDetailScreen() {
             !showAddRelation && <Text style={{ color: '#525252', fontSize: 12 }}>暂无关联</Text>
           )}
         </View>
-      </ScrollView>
+      </KAScrollView>
     </SafeAreaView>
   );
 }

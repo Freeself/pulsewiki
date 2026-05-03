@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { View, FlatList, TextInput, Pressable, Alert, ScrollView } from 'react-native';
+import { View, FlatList, TextInput, Pressable, Alert } from 'react-native';
 import { Text, Card, Chip, ActivityIndicator, FAB } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useWikiList, useWikiTags, useDeleteWiki, useRegenerateEmbedding, useCreateWiki } from '../../../src/hooks/useUnifiedData';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+const KAScrollView = KeyboardAwareScrollView as any;
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Wiki } from '@db/schema';
 
@@ -81,7 +83,7 @@ export default function WikiListScreen() {
         </View>
       )}
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 80 }}>
+      <KAScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 80 }} extraScrollHeight={80} enableOnAndroid={true}>
         {/* Create form */}
         {showCreate && (
           <Card style={{ backgroundColor: '#171717', marginHorizontal: 16, marginBottom: 10, borderRadius: 12 }}>
@@ -139,7 +141,7 @@ export default function WikiListScreen() {
             );
           })
         ))}
-      </ScrollView>
+      </KAScrollView>
 
       <FAB icon="plus" style={{ position: 'absolute', right: 16, bottom: 16, backgroundColor: '#a78bfa' }} color="#fff" onPress={startCreate} />
     </SafeAreaView>

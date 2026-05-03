@@ -52,6 +52,7 @@ export default function HomeScreen() {
   const stats = statsQuery.data;
 
   return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
         <Text variant="titleLarge" style={{ color: '#fff', fontWeight: 'bold' }}>PulseWiki</Text>
@@ -113,7 +114,7 @@ export default function HomeScreen() {
         )}
       />
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ paddingHorizontal: 16, paddingBottom: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.06)', backgroundColor: '#0a0a0a' }}>
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.06)', backgroundColor: '#0a0a0a' }}>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           <TextInput value={input} onChangeText={setInput} placeholder="输入你的问题..." placeholderTextColor="#525252" onSubmitEditing={handleSend} style={{ flex: 1, backgroundColor: '#171717', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, color: '#fff', fontSize: 14 }} />
           {askMut.isPending ? (
@@ -124,7 +125,8 @@ export default function HomeScreen() {
             </Pressable>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }

@@ -23,6 +23,7 @@
         "backgroundColor": "#0a0a0a"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayout": "resize",
       "package": "com.anonymous.pulsewikimobile"
     },
     "plugins": [

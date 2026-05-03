@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { View, ScrollView, TextInput, Pressable, Alert } from 'react-native';
+import { View, TextInput, Pressable, Alert } from 'react-native';
 import { Text, Card, Chip, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+const KAScrollView = KeyboardAwareScrollView as any;
 import { useConfigList, useCreateConfig, useUpdateConfig, useDeleteConfig, useActivateConfig, useDeactivateAllConfig } from '../../src/hooks/useUnifiedData';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { AiConfig } from '@db/schema';
@@ -64,7 +66,7 @@ export default function SettingsScreen() {
         <Text variant="titleLarge" style={{ color: '#fff', fontWeight: 'bold' }}>设置</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+      <KAScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} extraScrollHeight={80} enableOnAndroid={true}>
         {/* Active config */}
         <Card style={{ backgroundColor: '#171717', marginTop: 12, marginBottom: 12, borderRadius: 12 }}>
           <Card.Content style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -140,7 +142,7 @@ export default function SettingsScreen() {
             </Card.Content>
           </Card>
         )}
-      </ScrollView>
+      </KAScrollView>
     </SafeAreaView>
   );
 }
