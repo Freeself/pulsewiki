@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { View, Dimensions, Pressable, Text as RNText } from 'react-native';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Dimensions, Pressable, Text as RNText, PanResponder } from 'react-native';
 import { ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNetwork, useBuildNetwork } from '../../src/hooks/useUnifiedData';
@@ -45,8 +45,30 @@ export default function NetworkScreen() {
 
   const [nodes, setNodes] = useState<SimNode[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const panRef = useRef({ x: 0, y: 0, startX: 0, startY: 0, scale: 1 });
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const { width } = Dimensions.get('window');
   const height = 500;
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      panRef.current.startX = panRef.current.x;
+      panRef.current.startY = panRef.current.y;
+    },
+    onPanResponderMove: (_, gs) => {
+      panRef.current.x = panRef.current.startX + gs.dx;
+      panRef.current.y = panRef.current.startY + gs.dy;
+      setTransform({ x: panRef.current.x, y: panRef.current.y, scale: panRef.current.scale });
+    },
+    onPanResponderRelease: () => {},
+  }), []);
+
+  const handlePinch = (v: number) => {
+    const next = Math.max(0.3, Math.min(3, panRef.current.scale * (1 + v * 0.01)));
+    panRef.current.scale = next;
+    setTransform({ x: panRef.current.x, y: panRef.current.y, scale: next });
+  };
 
   const rawNodes = networkData?.nodes ?? [];
   const rawEdges = networkData?.edges ?? [];
@@ -146,15 +168,23 @@ export default function NetworkScreen() {
           <RNText style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>知识网络</RNText>
           <RNText style={{ color: '#525252', fontSize: 12 }}>{wikiCount} 知识 · {tagCount} 标签 · {rawEdges.length} 关系</RNText>
         </View>
-        <Pressable onPress={() => buildMut.mutate()} disabled={buildMut.isPending} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(139, 92, 246, 0.13)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, opacity: buildMut.isPending ? 0.4 : 1 }}>
-          {buildMut.isPending ? <ActivityIndicator animating size="small" color="#8b5cf6" /> : <MaterialCommunityIcons name="refresh" size={16} color="#8b5cf6" />}
-          <RNText style={{ color: '#8b5cf6', fontSize: 13 }}>重建</RNText>
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: 8, overflow: 'hidden' }}>
+            <Pressable onPress={() => handlePinch(5)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><MaterialCommunityIcons name="plus" size={16} color="#a3a3a3" /></Pressable>
+            <Pressable onPress={() => handlePinch(-5)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><MaterialCommunityIcons name="minus" size={16} color="#a3a3a3" /></Pressable>
+            <Pressable onPress={() => { panRef.current.x = 0; panRef.current.y = 0; panRef.current.scale = 1; setTransform({ x: 0, y: 0, scale: 1 }); }} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><MaterialCommunityIcons name="fit-to-screen" size={16} color="#a3a3a3" /></Pressable>
+          </View>
+          <Pressable onPress={() => buildMut.mutate()} disabled={buildMut.isPending} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(139, 92, 246, 0.13)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, opacity: buildMut.isPending ? 0.4 : 1 }}>
+            {buildMut.isPending ? <ActivityIndicator animating size="small" color="#8b5cf6" /> : <MaterialCommunityIcons name="refresh" size={16} color="#8b5cf6" />}
+            <RNText style={{ color: '#8b5cf6', fontSize: 13 }}>重建</RNText>
+          </Pressable>
+        </View>
       </View>
 
       {nodes.length > 0 ? (
-        <Svg width={width} height={height} style={{ backgroundColor: '#0a0a0a' }}>
-          <G>
+        <View {...panResponder.panHandlers}>
+          <Svg width={width} height={height} style={{ backgroundColor: '#0a0a0a' }}>
+          <G transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
             {/* Edges */}
             {links.map((l, i) => (
               <Line key={i} x1={l.source.x} y1={l.source.y} x2={l.target.x} y2={l.target.y}
@@ -192,6 +222,7 @@ export default function NetworkScreen() {
               })}
             </G>
           </Svg>
+        </View>
       ) : (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <RNText style={{ color: '#525252', marginBottom: 12 }}>暂无知识网络数据</RNText>
