@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { View, Dimensions, Pressable, Text as RNText, PanResponder } from 'react-native';
+import { View, Dimensions, Pressable, Text as RNText, PanResponder, Alert } from 'react-native';
 import { ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNetwork, useBuildNetwork } from '../../src/hooks/useUnifiedData';
@@ -45,6 +45,8 @@ export default function NetworkScreen() {
 
   const [nodes, setNodes] = useState<SimNode[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [highlightDegree, setHighlightDegree] = useState(1);
+  const [degreeOpen, setDegreeOpen] = useState(false);
   const panRef = useRef({ x: 0, y: 0, startX: 0, startY: 0, scale: 1 });
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const { width } = Dimensions.get('window');
@@ -159,6 +161,34 @@ export default function NetworkScreen() {
     ? rawEdges.filter((e: any) => e.sourceWikiId === selectedWikiId || e.targetWikiId === selectedWikiId)
     : [];
 
+  const highlightedIds = useMemo(() => {
+    if (!selectedId || links.length === 0) return new Set<string>();
+    const adj = new Map<string, Set<string>>();
+    for (const l of links) {
+      const sId = l.source.id ?? l.source;
+      const tId = l.target.id ?? l.target;
+      if (!adj.has(sId)) adj.set(sId, new Set());
+      if (!adj.has(tId)) adj.set(tId, new Set());
+      adj.get(sId)!.add(tId);
+      adj.get(tId)!.add(sId);
+    }
+    const visited = new Set<string>([selectedId]);
+    let frontier = new Set<string>([selectedId]);
+    for (let d = 0; d < highlightDegree; d++) {
+      const next = new Set<string>();
+      for (const nid of frontier) {
+        for (const neighbor of (adj.get(nid) ?? [])) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            next.add(neighbor);
+          }
+        }
+      }
+      frontier = next;
+    }
+    return visited;
+  }, [selectedId, links, highlightDegree]);
+
   if (isLoading) return (<SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator animating color="#a78bfa" /></SafeAreaView>);
 
   return (
@@ -168,41 +198,68 @@ export default function NetworkScreen() {
           <RNText style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>知识网络</RNText>
           <RNText style={{ color: '#525252', fontSize: 12 }}>{wikiCount} 知识 · {tagCount} 标签 · {rawEdges.length} 关系</RNText>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: 8, overflow: 'hidden' }}>
-            <Pressable onPress={() => handlePinch(5)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><MaterialCommunityIcons name="plus" size={16} color="#a3a3a3" /></Pressable>
-            <Pressable onPress={() => handlePinch(-5)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><MaterialCommunityIcons name="minus" size={16} color="#a3a3a3" /></Pressable>
-            <Pressable onPress={() => { panRef.current.x = 0; panRef.current.y = 0; panRef.current.scale = 1; setTransform({ x: 0, y: 0, scale: 1 }); }} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><MaterialCommunityIcons name="fit-to-screen" size={16} color="#a3a3a3" /></Pressable>
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          <View style={{ position: 'relative' }}>
+            <Pressable onPress={() => setDegreeOpen(!degreeOpen)} style={{ flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5 }}>
+              <RNText style={{ color: '#a78bfa', fontSize: 11 }}>{highlightDegree}度</RNText>
+              <MaterialCommunityIcons name={degreeOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#525252" />
+            </Pressable>
+            {degreeOpen && (
+              <View style={{ position: 'absolute', top: 30, left: 0, right: 0, backgroundColor: '#1c1c1e', borderRadius: 6, paddingVertical: 4, zIndex: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}>
+                {[1, 2, 3].map(d => (
+                  <Pressable key={d} onPress={() => { setHighlightDegree(d); setDegreeOpen(false); }} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: highlightDegree === d ? 'rgba(139, 92, 246, 0.2)' : 'transparent' }}>
+                    <RNText style={{ color: highlightDegree === d ? '#a78bfa' : '#a3a3a3', fontSize: 12 }}>{d}度</RNText>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
-          <Pressable onPress={() => buildMut.mutate()} disabled={buildMut.isPending} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(139, 92, 246, 0.13)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, opacity: buildMut.isPending ? 0.4 : 1 }}>
-            {buildMut.isPending ? <ActivityIndicator animating size="small" color="#8b5cf6" /> : <MaterialCommunityIcons name="refresh" size={16} color="#8b5cf6" />}
-            <RNText style={{ color: '#8b5cf6', fontSize: 13 }}>重建</RNText>
+          <Pressable onPress={() => Alert.alert('重新构建', '确定要重新构建知识网络吗？', [{ text: '取消', style: 'cancel' }, { text: '确定', style: 'destructive', onPress: () => buildMut.mutate() }])} disabled={buildMut.isPending} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6, backgroundColor: 'rgba(139, 92, 246, 0.13)', borderRadius: 6, opacity: buildMut.isPending ? 0.4 : 1 }}>
+            {buildMut.isPending ? <ActivityIndicator animating size={14} color="#8b5cf6" /> : <MaterialCommunityIcons name="refresh" size={16} color="#8b5cf6" />}
+            <RNText style={{ color: '#8b5cf6', fontSize: 12 }}>构建知识网络</RNText>
           </Pressable>
         </View>
       </View>
 
       {nodes.length > 0 ? (
         <View {...panResponder.panHandlers}>
+          {/* Zoom controls - bottom right vertical */}
+          <View style={{ position: 'absolute', bottom: 12, right: 8, flexDirection: 'column', gap: 4, zIndex: 1 }}>
+            <Pressable onPress={() => handlePinch(5)} style={{ padding: 8, backgroundColor: 'rgba(0, 0, 0, 0.7)', borderRadius: 6, alignItems: 'center' }}><MaterialCommunityIcons name="plus" size={18} color="#a3a3a3" /></Pressable>
+            <Pressable onPress={() => handlePinch(-5)} style={{ padding: 8, backgroundColor: 'rgba(0, 0, 0, 0.7)', borderRadius: 6, alignItems: 'center' }}><MaterialCommunityIcons name="minus" size={18} color="#a3a3a3" /></Pressable>
+            <Pressable onPress={() => { panRef.current.x = 0; panRef.current.y = 0; panRef.current.scale = 1; setTransform({ x: 0, y: 0, scale: 1 }); }} style={{ padding: 8, backgroundColor: 'rgba(0, 0, 0, 0.7)', borderRadius: 6, alignItems: 'center' }}><MaterialCommunityIcons name="fit-to-screen" size={18} color="#a3a3a3" /></Pressable>
+          </View>
           <Svg width={width} height={height} style={{ backgroundColor: '#0a0a0a' }}>
           <G transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
             {/* Edges */}
-            {links.map((l, i) => (
+            {links.map((l, i) => {
+              const hasSelection = highlightedIds.size > 0;
+              const sId = l.source.id ?? l.source;
+              const tId = l.target.id ?? l.target;
+              const bothHighlighted = highlightedIds.has(sId) && highlightedIds.has(tId);
+              const edgeOpacity = hasSelection ? (bothHighlighted ? 0.7 : 0.05) : 0.5;
+              return (
               <Line key={i} x1={l.source.x} y1={l.source.y} x2={l.target.x} y2={l.target.y}
                 stroke={l.type === 'tag' ? tagEdgeColor : (relationColors[l.label || ''] || '#333')}
                 strokeWidth={l.type === 'tag' ? 1 : 1.5}
-                opacity={l.type === 'tag' ? 0.5 : 0.5}
+                opacity={edgeOpacity}
                 strokeDasharray={l.type === 'tag' ? '3,3' : undefined}
               />
-            ))}
+              );
+            })}
               {/* Nodes */}
               {nodes.map(n => {
                 const isSel = n.id === selectedId;
+                const hasSelection = highlightedIds.size > 0;
+                const isHighlighted = hasSelection && highlightedIds.has(n.id);
+                const nodeOpacity = hasSelection ? (isSel ? 1 : isHighlighted ? 0.9 : 0.15) : (isSel ? 1 : 0.7);
+                const textOpacity = hasSelection ? (isHighlighted ? 1 : 0.15) : 1;
                 if (n.type === 'tag') {
                   return (
                     <G key={n.id}>
-                      <Circle cx={n.x} cy={n.y} r={isSel ? 10 : 7} fill="#06b6d4" opacity={isSel ? 0.9 : 0.5}
+                      <Circle cx={n.x} cy={n.y} r={isSel ? 10 : 7} fill="#06b6d4" opacity={nodeOpacity}
                         onPress={() => setSelectedId(isSel ? null : n.id)} />
-                      <SvgText x={n.x} y={(n.y ?? 0) + 18} textAnchor="middle" fill={tagColor} fontSize={8}
+                      <SvgText x={n.x} y={(n.y ?? 0) + 18} textAnchor="middle" fill={tagColor} fontSize={8} opacity={textOpacity}
                         onPress={() => setSelectedId(isSel ? null : n.id)}>
                         {n.title.length > 4 ? n.title.slice(0, 4) + '..' : n.title}
                       </SvgText>
@@ -212,9 +269,9 @@ export default function NetworkScreen() {
                 const color = getCategoryColor(n.category);
                 return (
                   <G key={n.id}>
-                    <Circle cx={n.x} cy={n.y} r={isSel ? 14 : 10} fill={color} opacity={isSel ? 1 : 0.7}
+                    <Circle cx={n.x} cy={n.y} r={isSel ? 14 : 10} fill={color} opacity={nodeOpacity}
                       onPress={() => setSelectedId(isSel ? null : n.id)} />
-                    <SvgText x={n.x} y={(n.y ?? 0) + 22} textAnchor="middle" fill="#a3a3a3" fontSize={9}>
+                    <SvgText x={n.x} y={(n.y ?? 0) + 22} textAnchor="middle" fill="#a3a3a3" fontSize={9} opacity={textOpacity}>
                       {n.title.length > 6 ? n.title.slice(0, 6) + '...' : n.title}
                     </SvgText>
                   </G>
