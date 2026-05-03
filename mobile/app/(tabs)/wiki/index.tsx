@@ -14,6 +14,7 @@ const inputStyle = { backgroundColor: '#0f0f0f', borderRadius: 8, paddingHorizon
 export default function WikiListScreen() {
   const [search, setSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [tagExpanded, setTagExpanded] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [formTitle, setFormTitle] = useState('');
@@ -66,22 +67,30 @@ export default function WikiListScreen() {
         </View>
       </View>
 
-      {(tags?.length ?? 0) > 0 && (
-        <View style={{ height: 30 }}>
-          <FlatList horizontal data={['全部', ...(tags ?? [])]} keyExtractor={item => item} showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center', gap: 6 }}
-            renderItem={({ item }) => {
+      {(tags?.length ?? 0) > 0 && (() => {
+        const allTags = ['全部', ...(tags ?? [])];
+        const VISIBLE_COUNT = 7;
+        const visibleTags = tagExpanded ? allTags : allTags.slice(0, VISIBLE_COUNT);
+        const hasMore = allTags.length > VISIBLE_COUNT;
+        return (
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            {visibleTags.map(item => {
               const isAll = item === '全部';
               const isActive = isAll ? !selectedTag : selectedTag === item;
               return (
-                <Pressable onPress={() => setSelectedTag(isAll ? null : item)} style={{ backgroundColor: isActive ? 'rgba(6, 182, 212, 0.08)' : 'rgba(255, 255, 255, 0.03)', paddingHorizontal: 8, height: 22, alignItems: 'center', justifyContent: 'center', borderRadius: 4 }}>
+                <Pressable key={item} onPress={() => setSelectedTag(isAll ? null : item)} style={{ backgroundColor: isActive ? 'rgba(6, 182, 212, 0.08)' : 'rgba(255, 255, 255, 0.03)', paddingHorizontal: 8, height: 22, alignItems: 'center', justifyContent: 'center', borderRadius: 4 }}>
                   <Text style={{ fontSize: 11, color: isActive ? '#06b6d4' : '#737373', lineHeight: 13 }}>{item}</Text>
                 </Pressable>
               );
-            }}
-          />
-        </View>
-      )}
+            })}
+            {hasMore && (
+              <Pressable onPress={() => setTagExpanded(!tagExpanded)} style={{ paddingHorizontal: 8, height: 22, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 11, color: '#8b5cf6' }}>{tagExpanded ? '收起' : `更多 ${allTags.length - VISIBLE_COUNT}`}</Text>
+              </Pressable>
+            )}
+          </View>
+        );
+      })()}
 
       <KAScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 80 }} extraScrollHeight={80} enableOnAndroid={true}>
         {/* Create form */}
