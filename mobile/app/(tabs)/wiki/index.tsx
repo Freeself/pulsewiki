@@ -57,7 +57,7 @@ export default function WikiListScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
-        <Text variant="titleLarge" style={{ color: '#fff', fontWeight: 'bold' }}>Wiki</Text>
+        <Text variant="titleLarge" style={{ color: '#fff', fontWeight: 'bold' }}>知识库</Text>
       </View>
 
       <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>

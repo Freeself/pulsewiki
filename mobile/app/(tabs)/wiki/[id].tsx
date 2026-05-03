@@ -83,7 +83,7 @@ export default function WikiDetailScreen() {
   }
 
   if (!wiki) {
-    return (<SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: '#525252' }}>未找到该 Wiki</Text></SafeAreaView>);
+    return (<SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: '#525252' }}>未找到该知识条目</Text></SafeAreaView>);
   }
 
   return (
@@ -93,7 +93,7 @@ export default function WikiDetailScreen() {
         <Pressable onPress={() => router.push('/wiki')}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#a78bfa" />
         </Pressable>
-        <Text variant="titleMedium" style={{ color: '#fff', fontWeight: 'bold', marginLeft: 12, flex: 1 }} numberOfLines={1}>{isEditing ? '编辑 Wiki' : wiki.title}</Text>
+        <Text variant="titleMedium" style={{ color: '#fff', fontWeight: 'bold', marginLeft: 12, flex: 1 }} numberOfLines={1}>{isEditing ? '编辑知识条目' : wiki.title}</Text>
         {!isEditing && (
           <Pressable onPress={startEdit} style={{ marginLeft: 8 }}>
             <MaterialCommunityIcons name="pencil-outline" size={20} color="#8b5cf6" />
@@ -178,9 +178,9 @@ export default function WikiDetailScreen() {
           {showAddRelation && (
             <Card style={{ backgroundColor: '#171717', marginBottom: 8, borderRadius: 8 }}>
               <Card.Content>
-                <Text style={{ color: '#a3a3a3', fontSize: 11, marginBottom: 4 }}>目标 Wiki</Text>
+                <Text style={{ color: '#a3a3a3', fontSize: 11, marginBottom: 4 }}>目标知识条目</Text>
                 <View style={{ backgroundColor: '#0f0f0f', borderRadius: 6, paddingHorizontal: 8, marginBottom: 8 }}>
-                  <TextInput value={relTargetId ? String(relTargetId) : ''} onChangeText={() => {}} placeholder="选择目标 Wiki..." placeholderTextColor="#525252" style={{ color: '#fff', fontSize: 13, paddingVertical: 6 }} editable={false} />
+                  <TextInput value={relTargetId ? String(relTargetId) : ''} onChangeText={() => {}} placeholder="选择目标知识条目..." placeholderTextColor="#525252" style={{ color: '#fff', fontSize: 13, paddingVertical: 6 }} editable={false} />
                 </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                   {(allWikis ?? []).filter(w => w.id !== wikiId).map(w => (

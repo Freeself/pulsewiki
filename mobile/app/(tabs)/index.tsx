@@ -61,7 +61,7 @@ export default function HomeScreen() {
         {stats && (
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
             <Chip textStyle={{ fontSize: 11, color: '#a78bfa' }} style={{ backgroundColor: 'rgba(167, 139, 250, 0.08)' }}>
-              {stats.wikis} 篇 Wiki
+              {stats.wikis} 篇知识
             </Chip>
             <Chip textStyle={{ fontSize: 11, color: '#06b6d4' }} style={{ backgroundColor: 'rgba(6, 182, 212, 0.08)' }}>
               {stats.questions} 条问答
@@ -74,7 +74,7 @@ export default function HomeScreen() {
         ref={flatListRef}
         data={messages}
         keyExtractor={item => item.id}
-        contentContainerStyle={{ padding: 16, paddingTop: 8 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: 60 }}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 80 }}>
             <Text style={{ color: '#525252', fontSize: 14 }}>向 AI 提问，探索你的知识库</Text>
@@ -91,20 +91,18 @@ export default function HomeScreen() {
                         {sourceConfig[item.source as keyof typeof sourceConfig]?.label || item.source}
                       </Chip>
                     )}
-                    <ScrollView nestedScrollEnabled={true} style={{ maxHeight: 400 }}>
                     <Markdown style={{ body: { color: '#e5e5e5', fontSize: 13 }, heading1: { color: '#fff' }, heading2: { color: '#fff' }, code_inline: { backgroundColor: 'rgba(255, 255, 255, 0.06)', color: '#a78bfa' }, code_block: { backgroundColor: '#0f0f0f', color: '#e5e5e5' }, bullet_list: { color: '#e5e5e5' }, ordered_list: { color: '#e5e5e5' } }}>
                       {item.content}
                     </Markdown>
-                    </ScrollView>
                     {item.questionId && item.source !== 'converted' && (
                       <Pressable onPress={() => handleConvert(item.questionId!)} disabled={convertMut.isPending} style={{ marginTop: 8, alignSelf: 'flex-start', opacity: convertMut.isPending ? 0.5 : 1 }}>
                         {convertMut.isPending
                           ? <ActivityIndicator animating size={14} color="#8b5cf6" style={{ marginTop: 4 }} />
-                          : <Chip icon="book-plus" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)' }}>存入 Wiki</Chip>}
+                          : <Chip icon="book-plus" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)' }}>存入知识库</Chip>}
                       </Pressable>
                     )}
                     {item.source === 'converted' && (
-                      <Chip icon="check" textStyle={{ fontSize: 11, color: '#10b981' }} style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', marginTop: 8, alignSelf: 'flex-start' }}>已存入</Chip>
+                      <Chip icon="check" textStyle={{ fontSize: 11, color: '#10b981' }} style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', marginTop: 8, alignSelf: 'flex-start' }}>已存入知识库</Chip>
                     )}
                   </View>
                 ) : (
@@ -112,8 +110,8 @@ export default function HomeScreen() {
                 )}
               </Card.Content>
             </Card>
-            <Pressable onPress={async () => { await Clipboard.setStringAsync(item.content); setCopied(true); }} style={{ marginTop: 4, alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start', padding: 4 }}>
-              <MaterialCommunityIcons name="content-copy" size={16} color="#525252" />
+            <Pressable onPress={async () => { await Clipboard.setStringAsync(item.content); setCopied(true); }} style={{ marginTop: 4, alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start', padding: 4, opacity: 0.6 }}>
+              <MaterialCommunityIcons name="content-copy" size={16} color="#a3a3a3" />
             </Pressable>
           </View>
         )}

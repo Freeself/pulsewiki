@@ -70,7 +70,7 @@ export default function QuestionsScreen() {
                           <Pressable onPress={() => convertMut.mutate(item.id)} disabled={convertMut.isPending} style={{ marginTop: 12, opacity: convertMut.isPending ? 0.5 : 1 }}>
                             {convertMut.isPending
                               ? <ActivityIndicator animating size={14} color="#8b5cf6" />
-                              : <Chip icon="book-plus" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', alignSelf: 'flex-start' }}>存入 Wiki</Chip>}
+                              : <Chip icon="book-plus" textStyle={{ fontSize: 11, color: '#8b5cf6' }} style={{ backgroundColor: 'rgba(139, 92, 246, 0.08)', alignSelf: 'flex-start' }}>存入知识库</Chip>}
                           </Pressable>
                         )}
                       </View>

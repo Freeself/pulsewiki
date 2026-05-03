@@ -27,7 +27,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="wiki/index"
         options={{
-          title: 'Wiki',
+          title: '知识库',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="book-open-page-variant" size={size} color={color} />
           ),
