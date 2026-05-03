@@ -3,6 +3,7 @@ import { questions, wikis } from '@db/schema';
 import { eq, and, like, or, desc } from 'drizzle-orm';
 import { getActiveConfig } from './lib/config-reader';
 import { generateEmbedding, findSimilarWikis } from './lib/embedding';
+import { generateTags } from './lib/tagging';
 
 async function callAI(messages: Array<{ role: string; content: string }>) {
   const config = await getActiveConfig();
@@ -85,11 +86,15 @@ export async function convertToWiki(questionId: number) {
   ]) || question.answer.slice(0, 200);
 
   const embText = `${title}\n${summary}\n${question.answer.slice(0, 2000)}`;
-  const embedding = await generateEmbedding(embText);
+  const [embedding, tags] = await Promise.all([
+    generateEmbedding(embText),
+    generateTags(title, question.answer, summary),
+  ]);
 
   const [newWiki] = await db.insert(wikis).values({
     userId: USER_ID, title, content: question.answer, summary, category: 'AI Generated',
     relatedQuestionId: question.id, embedding: embedding ? JSON.stringify(embedding) : null,
+    tags: tags ? JSON.stringify(tags) : null,
   }).returning();
 
   await db.update(questions).set({ isConvertedToWiki: 'yes', updatedAt: new Date() }).where(eq(questions.id, question.id));
@@ -111,11 +116,15 @@ export async function autoOrganize() {
     ]) || q.answer.slice(0, 200);
 
     const embText = `${title}\n${summary}\n${q.answer.slice(0, 2000)}`;
-    const embedding = await generateEmbedding(embText);
+    const [embedding, tags] = await Promise.all([
+      generateEmbedding(embText),
+      generateTags(title, q.answer, summary),
+    ]);
 
     const [wiki] = await db.insert(wikis).values({
       userId: USER_ID, title, content: q.answer, summary, category: 'AI Generated',
       relatedQuestionId: q.id, embedding: embedding ? JSON.stringify(embedding) : null,
+      tags: tags ? JSON.stringify(tags) : null,
     }).returning();
 
     await db.update(questions).set({ isConvertedToWiki: 'yes', updatedAt: new Date() }).where(eq(questions.id, q.id));
