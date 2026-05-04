@@ -14,8 +14,16 @@ config.resolver.nodeModulesPaths = [
 ];
 
 // Force tRPC and superjson to resolve from root node_modules
-// so types are shared between mobile and root
+// so types are shared between mobile and root.
+// Block react-native from resolving in root node_modules to avoid version conflicts.
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'react-native' || moduleName.startsWith('react-native/')) {
+    return context.resolveRequest(
+      { ...context, originModulePath: path.join(projectRoot, 'dummy.ts') },
+      moduleName,
+      platform,
+    );
+  }
   if (moduleName.startsWith('@trpc/') || moduleName === 'superjson') {
     return context.resolveRequest(
       { ...context, originModulePath: path.join(monorepoRoot, 'dummy.ts') },
